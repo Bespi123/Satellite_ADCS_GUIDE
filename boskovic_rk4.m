@@ -16,7 +16,7 @@ Td = disturbances; I = simParameters.initialValues.I;
 %%%Simulation containers
 x = zeros(7,n); u = zeros(3,n); o = zeros(1,n); dq = zeros(4,n);
 k_ant = k; k_dot_ant = 0;
-%%%eulerInt = zeros(1,n); asscct = zeros(1,n); 
+
 %%%Initial conditions
 x(:,1)=[simParameters.initialValues.q0; simParameters.initialValues.Wo];
 

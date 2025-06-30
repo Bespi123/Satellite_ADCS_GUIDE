@@ -69,3 +69,10 @@ ascct = cumtrapz(t,ascct_dot);
 tol = 5/100; % 2%
 ts = calculateSettlementTime(180/pi*quat2eul(dq'), t, tol) ;
 end
+
+function Xi = xi_matrix(q) 
+    Xi=[-q(2),-q(3),-q(4);
+         q(1),-q(4),q(3);
+         q(4),q(1),-q(2);
+        -q(3),q(2),q(1)]; 
+end

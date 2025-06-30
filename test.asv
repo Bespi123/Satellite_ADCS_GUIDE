@@ -1,0 +1,51 @@
+syms gx gy gz mx my mz q0 q1 q2 q3
+
+% Definir los campos gravitacional y magnético en el sistema inercial
+g_I = [gx; gy; gz];
+m_I = [mx; my; mz];
+
+% Definir el cuaternión de actitud
+q = [q0; q1; q2; q3];
+q_conj = [;;;];
+% Función para convertir el cuaternión en una matriz de rotación
+R = my_quat2rot(q);
+
+% Medición del campo gravitacional en el sistema del satélite
+g_B = R' * g_I;
+
+% Medición del campo magnético en el sistema del satélite (debe rotarse con R)
+m_B = R' * m_I;
+
+% Vector de mediciones (gravedad y magnético)
+y = [g_B; m_B];
+
+% Calcular el Jacobiano de las mediciones con respecto a los cuaterniones
+J = jacobian(y, q);  % Ahora pasamos 'q' directamente como un vector simbólico
+disp('Jacobiano:');
+disp(J);
+
+subs_J = subs(J, {gx, gy, gz, mx, my, mz}, {0, 0, -1, 0, 1, 0});
+
+% Mostrar el Jacobiano después de la sustitución
+disp('Jacobiano después de la sustitución:');
+disp(subs_J);
+
+disp(J);
+
+function R = my_quat2rot(q)
+    % Normalizar el cuaternión primero
+    q = q / norm(q);
+
+    % Extraer componentes
+    q0 = q(1);
+    q1 = q(2);
+    q2 = q(3);
+    q3 = q(4);
+
+    % Construir matriz de rotación
+    R = [1 - 2*(q2^2 + q3^2), 2*(q1*q2 - q0*q3), 2*(q1*q3 + q0*q2);
+         2*(q1*q2 + q0*q3), 1 - 2*(q1^2 + q3^2), 2*(q2*q3 - q0*q1);
+         2*(q1*q3 - q0*q2), 2*(q2*q3 + q0*q1), 1 - 2*(q1^2 + q2^2)];
+end
+
+
