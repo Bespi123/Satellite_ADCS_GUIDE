@@ -212,59 +212,11 @@ for i = 1:n-1
 
 end
 
-sensors.meas = [g_B; m_B; stars_B];
+sensors.meas = [omega_meas; g_B; m_B; stars_B];
 sensors.est = y_est;
 
 %%%Close wait bar
 close(hWaitbar);
-
-%% 1. Comparación de los componentes del cuaternión: Estimado vs Real
-figure('Name', 'Cuaternión: Estimado vs Real', 'Position', [100 100 900 600]);
-componentes = {'q0', 'q1', 'q2', 'q3'};
-
-for i = 1:4
-    subplot(2,2,i);
-    plot(t, x_est(i,:), 'b', 'LineWidth', 1.5); 
-    hold on;
-    plot(t, x(i,:), 'r--', 'LineWidth', 1.5);
-    
-    title(['Componente ' componentes{i}]);
-    xlabel('Tiempo (s)');
-    ylabel('Valor');
-    grid on;
-    legend(['Estimado ' componentes{i}], ['Real ' componentes{i}], 'Location', 'best');
-end
-
-% % % % %% 3. Comparación de mediciones de sensores vs predicciones
-% % % % figure('Name', 'Mediciones vs Predicciones', 'Position', [100 100 900 900]);
-% % % % 
-% % % % % Acelerómetros
-% % % % for i = 1:3
-% % % %     subplot(3,2,2*i-1);
-% % % %     plot(t(1:end-1), y_est(i,:), 'b', 'LineWidth', 1.5); 
-% % % %     hold on;
-% % % %     plot(t(1:end-1), g_B(i,:), 'r--', 'LineWidth', 1.5);
-% % % % 
-% % % %     title(['Acelerómetro ' num2str(i)]);
-% % % %     xlabel('Tiempo (s)');
-% % % %     ylabel('m/s^2');
-% % % %     grid on;
-% % % %     legend('Predicción', 'Medición', 'Location', 'best');
-% % % % end
-% % % % 
-% % % % % Magnetómetros
-% % % % for i = 1:3
-% % % %     subplot(3,2,2*i);
-% % % %     plot(t(1:end-1), y_est(i+3,:), 'b', 'LineWidth', 1.5); 
-% % % %     hold on;
-% % % %     plot(t(1:end-1), m_B(i,:), 'r--', 'LineWidth', 1.5);
-% % % % 
-% % % %     title(['Magnetómetro ' num2str(i)]);
-% % % %     xlabel('Tiempo (s)');
-% % % %     ylabel('uT');
-% % % %     grid on;
-% % % %     legend('Predicción', 'Medición', 'Location', 'best');
-% % % % end
 
     %%
     if error_flag == 0
