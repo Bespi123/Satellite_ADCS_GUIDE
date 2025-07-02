@@ -246,7 +246,11 @@ for i = 1:n-1
     end
 
     %% 5.2. EKF - Extended Kalman Filter
-
+    if i == 1
+        % Initial value calculated using the triad algorithm
+        q_est_init = triad_algorithm(g_I, m_I, g_B(:, i), m_B(:, i));
+        x_est(1:4, i) = q_est_init;
+    end
     % Update the state estimation and control input
     A = [eye(4), -0.5 *dt* xi_matrix(x_est(1:4, i)); zeros(3, 4), eye(3)];
     B = 1/2 * dt * [xi_matrix(x_est(1:4, i)); zeros(3, 3)];
@@ -353,9 +357,9 @@ function Xi = xi_matrix(q)
 % Create the matrix Xi based on the components of q
 % Developed by bespi123
     Xi = [ -q(2), -q(3), -q(4);
-           q(1), -q(4), q(3);
-           q(4), q(1), -q(2);
-          -q(3), q(2), q(1) ];
+            q(1), -q(4),  q(3);
+            q(4),  q(1), -q(2);
+           -q(3),  q(2),  q(1) ];
 end
 
 function R = my_quat2rot(q)
@@ -451,4 +455,54 @@ function C = measurement_jacobian(q, g_I, m_I, star_I)
     
     % Concatenate all Jacobian contributions to form the final measurement Jacobian matrix
     C = [C_g; C_m; C_star];
+end
+
+function q_triad = triad_algorithm(r1,r2,b1,b2)
+% triad_algorithm Calculates the attitude matrix using the TRIAD algorithm.
+%
+%   A_triad = triad_algorithm(r1, r2, b1, b2) computes the attitude matrix
+%   (also known as the rotation matrix) that describes the orientation
+%   of a rigid body. It achieves this by utilizing two non-collinear
+%   vector observations, one pair from a known reference frame (e.g., inertial)
+%   and the corresponding pair observed from the body frame whose attitude
+%   is to be determined.
+%
+%   Inputs:
+%   r1 - 3x1 (or compatible) reference vector for the first observation.
+%        This vector should be expressed in the reference frame.
+%   r2 - 3x1 (or compatible) reference vector for the second observation.
+%        This vector must be non-collinear with 'r1'.
+%   b1 - 3x1 (or compatible) body vector corresponding to 'r1'.
+%        This is the same physical vector as 'r1', but expressed in the
+%        body frame.
+%   b2 - 3x1 (or compatible) body vector corresponding to 'r2'.
+%        This is the same physical vector as 'r2', but expressed in the
+%        body frame, and must be non-collinear with 'b1'.
+%
+%   Output:
+%   q_triad - A 4x1 attitude (rotation) quaternion.
+
+    %%% Ensure input vectors are unitary column vectors
+    r1 = reshape(r1, [], 1); 
+    r2 = reshape(r2, [], 1); 
+    b1 = reshape(b1, [], 1); 
+    b2 = reshape(b2, [], 1);
+    
+    %%% Construct an orthonormal basis (triad) in the reference frame (V-frame)
+    v1 = r1;           % Aligned with the first reference vector.
+    v2 = cross(r1,r2) / norm(cross(r1,r2)); % Perpendicular to the plane formed by r1 and r2
+    v3 = cross(v1,v2); % Completes the right-handed orthonormal triad 
+    
+    %%% Construct an orthonormal basis (triad) in the body frame (W-frame)
+    w1 = b1;           % Aligned with the first body vector.
+    w2 = cross(b1,b2) / norm(cross(b1,b2)); % Perpendicular to the plane formed by b1 and b2
+    w3 = cross(w1,w2); % Completes the right-handed orthonormal triad
+    
+    %%% Estimate the Attitude Matrix (A_triad)
+    % A more common (and often more intuitive) formulation is:
+    % A_triad = [w1, w2, w3] * [v1, v2, v3]';
+    % Both forms are mathematically equivalent and should yield the same result.
+    A_triad = b1*r1' + (cross(b1,w2))*(cross(r1,v2))' + w2*v2';
+
+    q_triad = dcm2quat(A_triad)';
 end
