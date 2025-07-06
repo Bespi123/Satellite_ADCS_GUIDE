@@ -184,9 +184,17 @@ else
     R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2));
 end
 
+%%% Actuator parameters
+% Piramidal configuration 1
+betaAngle  = deg2rad(35.5);  %Beta Angle for piramidal Config
+W  = [             0, cos(betaAngle),  sin(betaAngle);    % n_a is located on satellite z y  axis
+      cos(betaAngle),              0, -sin(betaAngle);    % n_c is located on satellite z(-x) axis
+    -cos(betaAngle) ,              0, -sin(betaAngle);    % n_b is located on satellite z x  axis
+                   0,-cos(betaAngle), sin(betaAngle)]';   % n_d is located on satellite z(-y) axis
+
 %% 2. Simulation containers
 %%% System states containers
-x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1);
+x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1); T_winf_nosat = NaN(4,n);
 %%% Sensor containers
 g_B = NaN(3,n-1); m_B = NaN(3,n-1); stars_B = NaN(3*number_of_stars,n-1);
 omega_meas = NaN(3,n-1);
@@ -198,6 +206,7 @@ o = NaN(1,n-1);
 %% 3. Initial conditions
 x(:,1)=[simParameters.initialValues.q0; simParameters.initialValues.Wo];
 u(:,1) = zeros(3,1);  x_est(:,1) = [1, zeros(1,6)]'; 
+T_winf_nosat(:,1) = zeros(4,1);
 
 %% 4. Previous calculations to optimize the simulation
 %%%Calculate Wd_dot
@@ -283,10 +292,13 @@ for i = 1:n-1
     P_cov_ant = P_cov;
     
     %% 5.3. Runge-Kutta 4th order integration for state update
-    g1 = dt * cubeSatEquationState(Td(:, i), I, u(:, i), x(:, i));
-    g2 = dt * cubeSatEquationState(Td(:, i), I, u(:, i), x(:, i) + 0.5 * g1);
-    g3 = dt * cubeSatEquationState(Td(:, i), I, u(:, i), x(:, i) + 0.5 * g2);
-    g4 = dt * cubeSatEquationState(Td(:, i), I, u(:, i), x(:, i) + 0.5 * g3);
+    %T_u = u(:,i);
+    T_u = W*T_winf_nosat(:, i);
+
+    g1 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i));
+    g2 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g1);
+    g3 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g2);
+    g4 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g3);
     x(:, i + 1) = x(:, i) + (1 / 6) * (g1 + 2 * g2 + 2 * g3 + g4);
     
     % Calculate quaternion error
@@ -304,6 +316,10 @@ for i = 1:n-1
     end
     o(i) = toc;
     
+    % Allocator
+    T_w_L2norm = allocator_L2norm(W, u(:, i + 1));
+    T_winf_nosat(:, i + 1) = allocator_LinfNorm(T_w_L2norm); 
+
     % Check for NaN errors
     if isnan(x(:, i + 1))
         error_flag = 1;
@@ -341,6 +357,9 @@ close(hWaitbar);
         %%%Computation time
         indicators.o = o;
     end
+
+    figure()
+    plot(t,T_winf_nosat);
 end
 
 %% 6. Program Functions
@@ -489,14 +508,14 @@ function q_triad = triad_algorithm(r1,r2,b1,b2)
     b2 = reshape(b2, [], 1);
     
     %%% Construct an orthonormal basis (triad) in the reference frame (V-frame)
-    v1 = r1;           % Aligned with the first reference vector.
+    %v1 = r1;           % Aligned with the first reference vector.
     v2 = cross(r1,r2) / norm(cross(r1,r2)); % Perpendicular to the plane formed by r1 and r2
-    v3 = cross(v1,v2); % Completes the right-handed orthonormal triad 
+    %v3 = cross(v1,v2); % Completes the right-handed orthonormal triad 
     
     %%% Construct an orthonormal basis (triad) in the body frame (W-frame)
-    w1 = b1;           % Aligned with the first body vector.
+    %w1 = b1;           % Aligned with the first body vector.
     w2 = cross(b1,b2) / norm(cross(b1,b2)); % Perpendicular to the plane formed by b1 and b2
-    w3 = cross(w1,w2); % Completes the right-handed orthonormal triad
+    %w3 = cross(w1,w2); % Completes the right-handed orthonormal triad
     
     %%% Estimate the Attitude Matrix (A_triad)
     % A more common (and often more intuitive) formulation is:
