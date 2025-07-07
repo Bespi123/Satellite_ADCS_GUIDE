@@ -1,4 +1,4 @@
-function [x, u, x_est, indicators, sensors, error_flag] = simulation_rk4(app,disturbances,simParameters,time)
+function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulation_rk4(app,disturbances,simParameters,time)
 % SIMULATION_RK4 Simulates CubeSat attitude using a 4th-order Runge-Kutta integrator and EKF.
 %
 % This program simulates the attitude dynamics of a CubeSat, incorporating
@@ -186,15 +186,12 @@ end
 
 %%% Actuator parameters
 % Piramidal configuration 1
-betaAngle  = deg2rad(35.5);  %Beta Angle for piramidal Config
-W  = [             0, cos(betaAngle),  sin(betaAngle);    % n_a is located on satellite z y  axis
-      cos(betaAngle),              0, -sin(betaAngle);    % n_c is located on satellite z(-x) axis
-    -cos(betaAngle) ,              0, -sin(betaAngle);    % n_b is located on satellite z x  axis
-                   0,-cos(betaAngle), sin(betaAngle)]';   % n_d is located on satellite z(-y) axis
+number_of_rw = simParameters.rw.number;
+W  = simParameters.rw.W;
 
 %% 2. Simulation containers
 %%% System states containers
-x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1); T_winf_nosat = NaN(4,n);
+x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1); T_winf_nosat = NaN(number_of_rw,n);
 %%% Sensor containers
 g_B = NaN(3,n-1); m_B = NaN(3,n-1); stars_B = NaN(3*number_of_stars,n-1);
 omega_meas = NaN(3,n-1);
@@ -206,7 +203,7 @@ o = NaN(1,n-1);
 %% 3. Initial conditions
 x(:,1)=[simParameters.initialValues.q0; simParameters.initialValues.Wo];
 u(:,1) = zeros(3,1);  x_est(:,1) = [1, zeros(1,6)]'; 
-T_winf_nosat(:,1) = zeros(4,1);
+T_winf_nosat(:,1) = zeros(number_of_rw, 1);
 
 %% 4. Previous calculations to optimize the simulation
 %%%Calculate Wd_dot
@@ -317,8 +314,12 @@ for i = 1:n-1
     o(i) = toc;
     
     % Allocator
-    T_w_L2norm = allocator_L2norm(W, u(:, i + 1));
-    T_winf_nosat(:, i + 1) = allocator_LinfNorm(T_w_L2norm); 
+    if number_of_rw == 3
+        T_winf_nosat(:, i + 1) = W\u(:, i + 1);
+    else
+        T_w_L2norm = allocator_L2norm(W, u(:, i + 1));
+        T_winf_nosat(:, i + 1) = allocator_LinfNorm(T_w_L2norm); 
+    end
 
     % Check for NaN errors
     if isnan(x(:, i + 1))
