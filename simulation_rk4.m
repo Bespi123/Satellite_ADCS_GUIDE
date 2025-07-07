@@ -359,8 +359,6 @@ close(hWaitbar);
         indicators.o = o;
     end
 
-    figure()
-    plot(t,T_winf_nosat);
 end
 
 %% 6. Program Functions
