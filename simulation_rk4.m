@@ -35,8 +35,6 @@ function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulati
 %     runs at the high frequency of the gyroscope, while the **correction** step
 %     runs at the lower frequency of the attitude sensors. This is the standard
 %     and most effective implementation.
-%   - **OPTIMIZED**: Sensor reading logic has been encapsulated into dedicated helper functions
-%     for better code modularity and readability.
 % ----------------------------------------------------------------------------------
 %% 1. Parameter Recovery and Initialization
 %%% Time parameters assuming uniform time steps
@@ -76,17 +74,9 @@ bias_gyro = simParameters.sensors.gyro.bias;  % Gyroscope bias
 std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
 
 % Retrieve sampling times from the parameters structure.
-simParameters.sensors.gyro.Ts = 5*0.001;
-simParameters.sensors.attitude.Ts = 10*0.001;
-simParameters.control.Ts = 5*0.001; 
-
-try
-    Ts_gyro = simParameters.sensors.gyro.Ts;
-    Ts_attitude = simParameters.sensors.attitude.Ts;
-    Ts_control = simParameters.control.Ts; % Sampling time for the control loop
-catch ME
-    error('Sampling times (Ts_gyro, Ts_attitude, Ts_control) are not defined in simParameters.');
-end
+Ts_gyro = simParameters.sensors.gyro.Ts;
+Ts_attitude = simParameters.sensors.attitude.Ts;
+Ts_control = simParameters.control.Ts; % Sampling time for the control loop
 
 % Calculate in how many simulation steps (dt) each sampling occurs.
 steps_gyro = round(Ts_gyro / dt);
@@ -160,7 +150,6 @@ if simParameters.sensors.star.enable == 1
     stars_B(:,1) = get_star_tracker_reading(R_init, stars_I, std_star, bias_star, number_of_stars);
 end
 
-
 %% 4. Previous calculations to optimize the simulation
 Wd_dot = diff(wd')'./diff(t);
 hWaitbar = waitbar(0, 'Progress: 0%','Name', 'Attitude simulation progress..');
@@ -232,7 +221,14 @@ for i = 1:n-1
     %% 5.3. Control Law (runs at its own sampling rate Ts_control)
     if mod(i-1, steps_control) == 0
         % --- Calculate new control command ---
-        feed_est = [x_est(1:4,i); omega_meas(:,i)];
+        if simParameters.ekf.enable == 1
+            %%% Use sensors model as feedback signal
+            feed_est = [x_est(1:4,i); omega_meas(:,i)];
+        else
+            %%% Use ideal signals as feedback
+            feed_est = x(:, i);
+        end
+        
         dq(:, i) = Error_quaternio(qd(:, i), feed_est(1:4));
         
         tic
@@ -258,7 +254,6 @@ for i = 1:n-1
         last_T_winf_nosat = T_winf_new;
     else
         % --- Hold previous control command (ZOH) ---
-        %dq(:, i) = Error_quaternio(qd(:, i), [x_est(1:4,i); omega_meas(:,i)]);
         o(i) = NaN; % No control computation cost
     end
     
