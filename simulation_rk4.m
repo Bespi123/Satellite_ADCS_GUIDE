@@ -78,7 +78,7 @@ std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
 % Retrieve sampling times from the parameters structure.
 simParameters.sensors.gyro.Ts = 5*0.001;
 simParameters.sensors.attitude.Ts = 10*0.001;
-simParameters.control.Ts = 0.001; 
+simParameters.control.Ts = 5*0.001; 
 
 try
     Ts_gyro = simParameters.sensors.gyro.Ts;
@@ -258,8 +258,8 @@ for i = 1:n-1
         last_T_winf_nosat = T_winf_new;
     else
         % --- Hold previous control command (ZOH) ---
-        dq(:, i) = Error_quaternio(qd(:, i), [x_est(1:4,i); omega_meas(:,i)]);
-        o(i) = 0; % No control computation cost
+        %dq(:, i) = Error_quaternio(qd(:, i), [x_est(1:4,i); omega_meas(:,i)]);
+        o(i) = NaN; % No control computation cost
     end
     
     % Log the control signal for every step (it will be piecewise constant)
@@ -292,14 +292,14 @@ sensors.est = fillmissing(y_est, 'previous',2);
 close(hWaitbar);
 %% 6. Update performance indices
     if error_flag == 0
-        ang_and_axis = quat2axang(dq'); 
+        ang_and_axis = quat2axang(fillmissing(dq, 'previous',2)'); 
         eulerang = ang_and_axis(:,4);
         indicators.eulerInt = cumtrapz(t(1:end-1),eulerang); 
         ascct_dot=vecnorm(u,2,1).^2;
         indicators.ascct = cumtrapz(t,ascct_dot); 
         tol = 5/100;
         indicators.ts = calculateSettlementTime(180/pi*quat2eul(dq'), t, tol);
-        indicators.o = o;
+        indicators.o = fillmissing(o, 'previous');
     end
 end
 %% 7. Program Functions
