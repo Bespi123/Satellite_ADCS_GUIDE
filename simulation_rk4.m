@@ -7,8 +7,8 @@ function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulati
 % various sensors and control laws.
 %
 % Author: bespi123
-% Creation Date: [Creation Date, e.g., 2023-10-27]
-% Last Modified: [Last Modification Date, e.g., 2024-07-02]
+% Creation Date: [Creation Date, 2023-10-27]
+% Last Modified: [Last Modification Date, 2024-07-07]
 %
 % Inputs:
 %   app           - UI application object (contains GUI properties like selected controllers).
@@ -257,6 +257,7 @@ for i = 1:n-1
         q_est_init = triad_algorithm(g_I, m_I, g_B(:, i), m_B(:, i));
         x_est(1:4, i) = q_est_init;
     end
+    
     % Update the state estimation and control input
     A = [eye(4), -0.5 *dt* xi_matrix(x_est(1:4, i)); zeros(3, 4), eye(3)];
     B = 1/2 * dt * [xi_matrix(x_est(1:4, i)); zeros(3, 3)];
