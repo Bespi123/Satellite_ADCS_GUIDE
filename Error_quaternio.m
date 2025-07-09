@@ -45,7 +45,7 @@ Xi = [-qd(2), -qd(3), -qd(4);
 % quaternion. This is an efficient way to perform part of the
 % quaternion product. Note that this is equivalent to the vector part
 % of the product between qd and the conjugate of q.
-q13_err = Xi' * q(2:4);
+q13_err = Xi' * q;
 
 % The scalar part of the error quaternion (q0_err) is the dot product
 % of the desired and current quaternions.
