@@ -50,7 +50,7 @@ error_flag = 0;
 if app.controller_popupmenu.ValueIndex == 1
     %%% Feedback Controller gains
     P = simParameters.feedback.Peye; 
-    K = simParameters.feedback.Peye;
+    K = simParameters.feedback.Keye;
 else
     %%% Boskovic Controller gains
     delta = simParameters.boskController.delta;
