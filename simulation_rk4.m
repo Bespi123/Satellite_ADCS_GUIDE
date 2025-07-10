@@ -1,4 +1,4 @@
-function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulation_rk4(app,disturbances,simParameters,time)
+function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulation_rk4(~,disturbances,simParameters,time)
 % SIMULATION_RK4 Simulates CubeSat attitude with sampling for sensors and control loop.
 %
 % This version simulates the attitude dynamics of a CubeSat, allowing the
@@ -47,7 +47,7 @@ Td = disturbances; I = simParameters.initialValues.I;
 %%% Error flag
 error_flag = 0;
 % Controller gains and initial values
-if app.controller_popupmenu.ValueIndex == 1
+if simParameters.controller.selector == 1
     %%% Feedback Controller gains
     P = simParameters.feedback.Peye; 
     K = simParameters.feedback.Keye;
@@ -169,9 +169,13 @@ for i = 1:n-1
     %% 5.2. EKF - Extended Kalman Filter
     % --- EKF Initial Guess (TRIAD at first step) ---
     if i == 1
-        % Use the pre-calculated, noise-free initial measurements for the TRIAD algorithm.
-        q_est_init = triad_algorithm(g_I, m_I, g_B(:,1), m_B(:,1));
-        x_est(1:4, i) = q_est_init;
+        if simParameters.ekf.enable == 1
+            % Use the pre-calculated, noise-free initial measurements for the TRIAD algorithm.
+            q_est_init = triad_algorithm(g_I, m_I, g_B(:,1), m_B(:,1));
+            x_est(1:4, i) = q_est_init;
+        else
+            x_est(1:4, i) = x(1:4,i);
+        end
     end
     
     % --- EKF Prediction Step (always runs at high frequency) ---
@@ -232,7 +236,7 @@ for i = 1:n-1
         dq(:, i) = Error_quaternio(qd(:, i), feed_est(1:4));
         
         tic
-        if app.controller_popupmenu.ValueIndex == 1
+        if simParameters.controller.selector == 1
             u_new = ControlFeedback_rw(I, feed_est, dq(:, i), wd(:, i), Wd_dot(:, i), P, K); 
         else
             k_dot = Gain_estimator_bosk(feed_est(5:7), wd(:, i), dq(:, i), delta, gamma, k, Umax);
@@ -295,6 +299,10 @@ close(hWaitbar);
         tol = 5/100;
         indicators.ts = calculateSettlementTime(180/pi*quat2eul(dq'), t, tol);
         indicators.o = fillmissing(o, 'previous');
+        error_vec = x(1:4,:) - x_est(1:4,:);
+        indicators.RMSE = sqrt(mean(error_vec.^2,2));
+        %indicators.RSME = cumtrapz(t,error_vec.^2');
+         
     end
 end
 %% 7. Program Functions

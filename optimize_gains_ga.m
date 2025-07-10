@@ -1,18 +1,4 @@
 function optimize_gains_ga(app,disturbances,simParameters,time)
-% --- 1. Configuración Inicial ---
-% Necesitas una instancia de tu app y los parámetros iniciales.
-% Una forma es ejecutar tu app, y luego ejecutar este script desde la consola de MATLAB.
-% Asegúrate de que la variable 'app' exista en el workspace.
-% if ~exist('app', 'var') || ~isvalid(app)
-%     error('Por favor, ejecuta la app ADCS_program primero y asegúrate de que la variable "app" esté en el workspace.');
-% end
-
-% % Carga los parámetros iniciales
-% simParameters = app.simulationParameters;
-% time = struct('ti', app.initTime_edit.Value, 'tf', app.finalTime_edit.Value, 'step', app.step_edit.Value);
-% time.t = time.ti:time.step:time.tf;
-% time.n = length(time.t);
-% disturbances = getDisturbances(app.simulationParameters.disturbances, time); % Asumiendo que getDisturbances está accesible
 
 % --- 2. Configuración del Algoritmo Genético ---
 % Define la función objetivo
@@ -29,17 +15,18 @@ ub = [10,   10,   10,   10,   10,   10];   % Valores máximos para cada ganancia
 % %%% --- DEFINIR LA POBLACIÓN INICIAL --- %%%
 % Define aquí uno o más conjuntos de ganancias que creas que son buenos.
 % Cada fila es un individuo.
-initial_gains_1 = [0.2, 0.2, 0.2, 0.3, 0.3, 0.3]; % Un buen punto de partida conocido
-% Crea la matriz que se pasará al GA.
-initial_population = [initial_gains_1];
+P = simParameters.feedback.Peye;
+K = simParameters.feedback.Keye;
+
+initial_population = [P(1,1), P(2,2), P(3,3), K(1,1), K(2,2), K(3,3)]; % Un buen punto de partida conocido
 
 % Opciones del GA
 options = optimoptions('ga', ...
-    'PopulationSize', 5, ...       % Individuos por generación
+    'PopulationSize', 10, ...       % Individuos por generación
     'MaxGenerations', 10, ...      % Número de generaciones
     'Display', 'iter', ...          % Muestra el progreso en cada iteración
     'PlotFcn', {@gaplotbestf, @gaplotstopping}, ... % Gráfica el mejor fitness y el criterio de parada
-    'UseParallel', false, ...
+    'UseParallel', true, ...
     'InitialPopulationMatrix', initial_population);           % ¡MUY RECOMENDADO para acelerar el proceso!
 
 % --- 3. Ejecutar el Algoritmo Genético ---
