@@ -300,9 +300,7 @@ close(hWaitbar);
         indicators.ts = calculateSettlementTime(180/pi*quat2eul(dq'), t, tol);
         indicators.o = fillmissing(o, 'previous');
         error_vec = x(1:4,:) - x_est(1:4,:);
-        indicators.RMSE = sqrt(mean(error_vec.^2,2));
-        %indicators.RSME = cumtrapz(t,error_vec.^2');
-         
+        indicators.RMSE = sqrt(mean(error_vec.^2,2));         
     end
 end
 %% 7. Program Functions

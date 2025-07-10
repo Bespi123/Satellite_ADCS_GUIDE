@@ -1,56 +1,91 @@
-function cost = objectiveFunction(gains, app, disturbances, simParameters, time)
-    % objectiveFunction - Evalúa el costo de un conjunto de ganancias del controlador.
+function cost = objectiveFunction(gains, disturbances, simParameters, time)
+    % objectiveFunction - Evaluates the quality (cost) of a set of controller gains.
+    %
+    % This function is designed to be used by an optimizer (such as a
+    % genetic algorithm) that searches for the best controller gains.
+    % A lower cost means better controller performance.
     %
     % Inputs:
-    %   gains         - Vector con las ganancias a optimizar.
-    %   app           - Objeto de la app (para pasar al simulador).
-    %   disturbances  - Perturbaciones.
-    %   simParameters - Parámetros base de la simulación.
-    %   time          - Parámetros de tiempo.
+    %   gains         - Row vector (1x6) with the gains to be optimized.
+    %                 Ex: [Kp1, Kp2, Kp3, Kd1, Kd2, Kd3]
+    %   app           - Handle to the main application object (GUI), necessary
+    %                 to pass to the simulator.
+    %   disturbances  - Structure or matrix with external disturbances for the simulation.
+    %   simParameters - Structure with all the base simulation parameters.
+    %                 This structure will be temporarily modified with the new 'gains'.
+    %   time          - Structure with the simulation time parameters (dt, t_final).
     %
     % Output:
-    %   cost          - Un único valor escalar que representa el "costo". Menor es mejor.
+    %   cost          - A single scalar value representing the total "cost"
+    %                 of the controller's performance. A lower value is better.
 
-    % --- 1. Actualizar los parámetros de simulación con las nuevas ganancias ---
-    % Asumimos que optimizaremos el controlador Feedback.
-    % 'gains' es un vector: [P11, P22, P33, K11, K22, K33]
-    simParameters.feedback.Peye = diag(gains(1:3));
-    simParameters.feedback.Keye = diag(gains(4:6));
+    if simParameters.controller.selector == 1
+        % --- 1. Update Simulation Parameters with New Gains ---
+        % The optimizer passes a 'gains' vector. Here, we extract those values and
+        % place them in the controller gain matrices within the
+        % simulation parameters structure.
+        % It is assumed that the gains are for the diagonals of the P and K matrices.
+        simParameters.feedback.Peye = diag(gains(1:3)); % Proportional gain matrix (P)
+        simParameters.feedback.Keye = diag(gains(4:6)); % Derivative gain matrix (K)
+    else
+        % --- 1. Update Simulation Parameters with New Gains ---
+        % The optimizer passes a 'gains' vector. Here, we extract those values and
+        % place them in the controller gain matrices within the
+        % simulation parameters structure.
+        % It is assumed that the gains are for the diagonals of the P and K matrices.
+        simParameters.boskController.delta = gains(1); % delta
+        simParameters.boskController.gamma = gains(2); % gamma
+        simParameters.boskController.k0    = gains(3); % k0
+    end
 
-    % --- 2. Ejecutar la simulación ---
+    % --- 2. Run the Simulation ---
+    % A try-catch block is used to handle unexpected errors. If a
+    % combination of gains causes the simulation to fail (e.g., due to
+    % numerical instability), the optimizer will not stop.
     try
-        [~, ~, ~, ~, indicators, ~, error_flag] = simulation_rk4(app, disturbances, simParameters, time);
-
-        % Si la simulación falla (se vuelve inestable), asigna un costo muy alto.
+        %Dump variable
+        App = NaN;
+        % Call to the main simulation function.
+        [~, ~, ~, ~, indicators, ~, error_flag] = simulation_rk4(App, disturbances, simParameters, time);
+        
+        % Check if the simulation itself reported an error (e.g., divergence).
         if error_flag == 1
-            cost = 1e10; % Penalización alta
-            return;
+            cost = 1e10; % Assign a very high penalty to discard this solution.
+            return;      % Ends the execution of this function.
         end
     catch
-        % Si ocurre cualquier otro error
-        cost = 1e10;
+        % If any other error occurs during the simulation execution.
+        cost = 1e10; % Assign the same high penalty.
         return;
     end
 
-    % --- 3. Calcular el costo a partir de los indicadores ---
-    % Ponderamos cada indicador para crear un costo total.
-    % ¡Estos pesos (w1, w2, w3) son muy importantes y debes ajustarlos!
-    w1 = 0.5;  % Peso para el tiempo de estabilización (ts)
-    w2 = 0.3;  % Peso para el gasto de control (ASCCT)
-    w3 = 0.2;  % Peso para el error integrado (EULERINT)
-
-    cost_ts = indicators.ts;
-    cost_ascct = indicators.ascct(end); % Valor final del gasto de control
-    cost_euler = indicators.eulerInt(end); % Valor final del error integrado
-
-    % Combinar en un único costo
+    % --- 3. Calculate the Cost from Performance Indicators ---
+    % This is the most critical part. Several performance metrics are combined
+    % into a single "cost" number. The weighting of each metric determines
+    % which aspect of performance is more important.
+    
+    % Weights: You must adjust these values according to your priorities!
+    % The sum of the weights does not have to be 1, but it helps with interpretation.
+    w1 = 0.5;  % Weight for the settling time (ts). Prioritizes speed.
+    w2 = 0.3;  % Weight for the control effort (ASCCT). Prioritizes energy efficiency.
+    w3 = 0.2;  % Weight for the integrated error (EULERINT). Prioritizes accuracy over time.
+    
+    % Extract the final values of the indicators from the simulation.
+    cost_ts = indicators.ts;               % Time it takes for the system to stabilize.
+    cost_ascct = indicators.ascct(end);    % Accumulated control effort at the end.
+    cost_euler = indicators.eulerInt(end); % Integrated Euler error at the end.
+    
+    % Cost Formula: Weighted combination of the metrics.
     cost = w1 * cost_ts + w2 * cost_ascct + w3 * cost_euler;
     
-    % Asegurarse de que el costo no sea NaN
+    % --- 4. Sanity Check ---
+    % Ensure the calculated cost is not an invalid value like NaN (Not-a-Number).
     if isnan(cost)
-        cost = 1e10; % Penalización si el costo es inválido
+        cost = 1e10; % Penalty if the cost is invalid
     end
     
-    % Opcional: Mostrar el progreso en la consola
-    fprintf('Gains: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f] -> Cost: %.4f\n', gains, cost);
+    % --- 5. Visualization (Optional) ---
+    % Print the result of this evaluation to the console. It is useful for
+    % monitoring the optimizer's progress in real-time.
+    %fprintf('Gains: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f] -> Cost: %.4f\n', gains, cost);
 end
