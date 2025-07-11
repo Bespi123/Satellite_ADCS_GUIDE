@@ -299,8 +299,11 @@ close(hWaitbar);
         tol = 5/100;
         indicators.ts = calculateSettlementTime(180/pi*quat2eul(dq'), t, tol);
         indicators.o = fillmissing(o, 'previous');
-        error_vec = x(1:4,:) - x_est(1:4,:);
-        indicators.RMSE = sqrt(mean(error_vec.^2,2));         
+        
+        ang_and_axis_real = quat2axang(x(1:4,:)');
+        ang_and_axis_est = quat2axang(x_est(1:4,:)');
+        error_vec = ang_and_axis_real(:,4) - ang_and_axis_est(:,4);
+        indicators.RMSE = sqrt(mean(error_vec.^2));         
     end
 end
 %% 7. Program Functions

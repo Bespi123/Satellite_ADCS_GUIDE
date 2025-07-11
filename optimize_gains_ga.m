@@ -79,7 +79,7 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
     % --- 3. Display Results ---
     disp('Optimization finished.');
     fprintf('Minimum cost found: %.4f\n', min_cost);
-    disp('Optimal gains found (P and K diagonals):');
+    disp('Optimal gains found:');
     disp(optimal_gains);
     
     % Notifies the user that the process has finished.

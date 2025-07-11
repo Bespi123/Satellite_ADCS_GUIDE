@@ -9,17 +9,18 @@ function costs_vector = ekfObjectiveFunction(params, app, disturbances, simParam
     % Inicializar una matriz para guardar los costos de cada estado en cada simulación
     % El número de columnas debe coincidir con el número de estados en indicators.RSME
     % Asumimos un número de estados (ej. 4 para quaternions), ajústalo si es necesario.
-    num_states = 4; 
+    num_states = 1; 
     total_costs_matrix = zeros(num_simulations, num_states);
 
     % --- Extraer parámetros ---
-    simParameters.ekf.gyro.std = params(1:3);
-    simParameters.ekf.acc.std  = params(4:6);
-    simParameters.ekf.mag.std  = params(7:9);
+    simParameters.ekf.gyro.std = params(1:3)';
+    simParameters.ekf.acc.std  = params(4:6)';
+    simParameters.ekf.mag.std  = params(7:9)';
     if simParameters.sensors.star.enable == 1
-        simParameters.ekf.star.std  = params(10:12);
+        simParameters.ekf.star.std  = params(10:12)';
     end
     simParameters.ekf.enable = 0;
+    simParameters.ekf.equalModel = 0;
 
     % --- Bucle de Montecarlo ---
     for i = 1:num_simulations
@@ -28,16 +29,16 @@ function costs_vector = ekfObjectiveFunction(params, app, disturbances, simParam
             
             if error_flag
                 % Si hay un error, penaliza todos los estados por igual
-                total_costs_matrix(i, :) = 1e10 * ones(1, num_states);
+                total_costs_matrix(i, :) = 1e10;
             else
                 % Guarda el vector de RMSE del final de la simulación
-                current_run_costs = indicators.RMSE';
+                current_run_costs = indicators.RMSE;
                 current_run_costs(isnan(current_run_costs)) = 1e10; % Penaliza si hay NaN
                 total_costs_matrix(i, :) = current_run_costs;
             end
         catch
             % Penalización si la simulación falla por completo
-            total_costs_matrix(i, :) = 1e10 * ones(1, num_states);
+            total_costs_matrix(i, :) = 1e10;
         end
     end
     
