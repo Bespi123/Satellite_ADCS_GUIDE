@@ -73,6 +73,10 @@ bias_mag = simParameters.sensors.mag.bias; % Bias of magnetometer
 bias_gyro = simParameters.sensors.gyro.bias;  % Gyroscope bias
 std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
 
+%%% Gyro filter time constant
+tau_gyro_filter = 0.1;
+%tau_gyro_filter = simParameters.sensors.gyro.filter_tau;
+
 % Retrieve sampling times from the parameters structure.
 Ts_gyro = simParameters.sensors.gyro.Ts;
 Ts_attitude = simParameters.sensors.attitude.Ts;
@@ -123,21 +127,60 @@ end
 %%% Actuator parameters
 number_of_rw = simParameters.rw.number;
 W  = simParameters.rw.W;
+%%% Brushless models Motor Parameters
+motor.kt   = 0.0254;  %kt 
+motor.Jrw  = 2.55E-05 + 9.25E-6;   %J
+motor.b  = 5.58E-4;  %B
+motor.c  = 0.0000;   %kc
+motor.L  = 0.000403;  %H  
+motor.R  = 1.16;      %R    
+motor.ke = 0.0254;   %ke
+
+%% PID GAINS
+% Controller values
+% kp =  46.6757247986996;
+% ki = 10664.0026657905; 
+% kd = 0.0129761155404371;
+% N_u  = 14046.766238174;
+
+kp = 0.504519552012394;
+ki = 28.7345189644697; 
+kd = -0.000554999924740984;
+N_u  = 289.873462888377;
+
+%%Initial conditions
+init.w_rw = 0;
+init.current = 0; 
+
 %% 2. Simulation containers
 x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1); T_winf_nosat = NaN(number_of_rw,n);
 g_B = NaN(3,n-1); m_B = NaN(3,n-1); stars_B = NaN(3*number_of_stars,n-1);
-omega_meas = NaN(3,n-1);
+omega_meas = NaN(3,n-1); omega_meas_filtered = NaN(3,n-1);
 x_est = NaN(7,n-1); y_est = NaN(6+3*number_of_stars,n-3); 
 o = NaN(1,n-1); 
+
+x_rw = NaN(2*number_of_rw,n);
+u_rw = NaN(number_of_rw,n);
+w_cmd = NaN(number_of_rw,n);
+torque_real = NaN(number_of_rw,n);
+
 %% 3. Initial conditions
 % Set initial true state, control, and estimated state
 x(:,1)=[simParameters.initialValues.q0; simParameters.initialValues.Wo];
 u(:,1) = zeros(3,1);  x_est(:,1) = [1, zeros(1,6)]'; 
 T_winf_nosat(:,1) = zeros(number_of_rw, 1);
 
+x_rw(:,1) = repmat([init.w_rw, init.current],1,number_of_rw)';
+u_rw(:,1) = zeros(number_of_rw,1);
+int_e_ant = zeros(number_of_rw,1);
+e_ant = zeros(number_of_rw,1);
+yf_u = zeros(number_of_rw,1);
+w_cmd_ant = zeros(number_of_rw,1);
+last_filtered_omega = 0;
+
 % Initialize containers for the last known measurement/calculation (Zero-Order Hold).
 last_omega_meas = simParameters.initialValues.Wo;
-last_u = zeros(3,1);
+last_u = zeros(number_of_rw,1);
 last_T_winf_nosat = zeros(number_of_rw, 1);
 
 % Get the initial rotation matrix from the true state.
@@ -157,37 +200,44 @@ hWaitbar = waitbar(0, 'Progress: 0%','Name', 'Attitude simulation progress..');
 for i = 1:n-1
     %% 5.1. Sensor models (add noise, bias and SAMPLING)
     % Gyroscope model with sampling.
-    if mod(i-1, steps_gyro) == 0
-        W_gyro = std_gyro .* randn(3, 1);                  % Random noise
+    if mod(i-1, steps_gyro) == 0 || i==1
+        W_gyro = std_gyro .* randn(3, 1);                    % Random noise
         current_omega_meas = x(5:7, i) + W_gyro + bias_gyro; % Gyroscope measurement
-        last_omega_meas = current_omega_meas; % Update the last known measurement.
-    else
-        current_omega_meas = last_omega_meas; % Hold the previous measurement.
+        %last_omega_meas = current_omega_meas; % Update the last known measurement.
+        
+        % First-Order Low-Pass Filter for Gyroscope Measurement
+        alpha = Ts_gyro / (tau_gyro_filter + Ts_gyro);
+        filtered_omega_meas = (1 - alpha) * last_filtered_omega + alpha * current_omega_meas;
     end
+
     omega_meas(:, i) = current_omega_meas; % Save to history.
+    omega_meas_filtered(:,i) = filtered_omega_meas; % Save filtered data to history
 
     %% 5.2. EKF - Extended Kalman Filter
     % --- EKF Initial Guess (TRIAD at first step) ---
     if i == 1
         if simParameters.ekf.enable == 1
-            % Use the pre-calculated, noise-free initial measurements for the TRIAD algorithm.
-            q_est_init = triad_algorithm(g_I, m_I, g_B(:,1), m_B(:,1));
-            x_est(1:4, i) = q_est_init;
+            % Use initial measurements for the TRIAD algorithm.
+            x_est(1:4, i) = triad_algorithm(g_I, m_I, g_B(:,1), m_B(:,1));
         else
             x_est(1:4, i) = x(1:4,i);
         end
     end
+    
     
     % --- EKF Prediction Step (always runs at high frequency) ---
     % The prediction step runs at each time step 'dt' using the
     % most recent gyroscope measurement (which may be a held measurement).
     A = [eye(4), -0.5 *dt* xi_matrix(x_est(1:4, i)); zeros(3, 4), eye(3)];
     B = 1/2 * dt * [xi_matrix(x_est(1:4, i)); zeros(3, 3)];
-    x_pred = A * x_est(:, i) + B * omega_meas(:, i);
-    
+
+    %x_pred = A * x_est(:, i) + B * omega_meas(:, i);
+    x_pred = A * x_est(:, i) + B * omega_meas_filtered(:, i);
+
     Q = dt*[0.25*xi_matrix(x_est(1:4,i))*Q_gyro*xi_matrix(x_est(1:4,i))', zeros(4,3);
-              zeros(3,4), Q_gyro];
+          zeros(3,4), Q_gyro];
     P_pred = A * P_cov_ant * A' + Q; 
+   
 
     % --- EKF Correction Step (runs only when attitude measurements are available) ---
     if mod(i-1, steps_attitude) == 0
@@ -208,6 +258,7 @@ for i = 1:n-1
         y_est_pred = C * [x_pred(1:4); zeros(3,1)]; % Predicted measurement (only depends on quaternion)
         y_est(:,i) = y_est_pred;
         k_K = P_pred * C' / (C * P_pred * C' + R_k);  % Kalman gain
+        
         x_est(:, i + 1) = x_pred + k_K * (y - y_est(:,i)); % Correct state
         P_cov = (eye(7) - k_K * C) * P_pred; % Correct covariance
     else
@@ -220,14 +271,14 @@ for i = 1:n-1
     x_est(1:4, i + 1) = x_est(1:4, i + 1) / norm(x_est(1:4, i + 1));
     if x_est(1, i + 1) < 0, x_est(1:4, i + 1) = -x_est(1:4, i + 1); end
     P_cov_ant = P_cov;
-   
-    
+
     %% 5.3. Control Law (runs at its own sampling rate Ts_control)
     if mod(i-1, steps_control) == 0
         % --- Calculate new control command ---
         if simParameters.ekf.enable == 1
             %%% Use sensors model as feedback signal
-            feed_est = [x_est(1:4,i); omega_meas(:,i)];
+            %feed_est = [x_est(1:4,i); omega_meas(:,i)];
+            feed_est = [x_est(1:4,i); omega_meas_filtered(:,i)];
         else
             %%% Use ideal signals as feedback
             feed_est = x(:, i);
@@ -240,7 +291,8 @@ for i = 1:n-1
             u_new = ControlFeedback_rw(I, feed_est, dq(:, i), wd(:, i), Wd_dot(:, i), P, K); 
         else
             k_dot = Gain_estimator_bosk(feed_est(5:7), wd(:, i), dq(:, i), delta, gamma, k, Umax);
-            k = k_ant + dt / 6 * (k_dot_ant + 2 * (k_dot_ant + k_dot) + k_dot);
+            %k = k_ant + dt / 6 * (k_dot_ant + 2 * (k_dot_ant + k_dot) + k_dot);
+            k = k_ant + Ts_control / 6 * (k_dot_ant + 2 * (k_dot_ant + k_dot) + k_dot);
             u_new = Boskovic_control(feed_est(5:7), wd(:, i), dq(:, i), delta, k, Umax);
         end
         o(i) = toc;
@@ -256,6 +308,10 @@ for i = 1:n-1
         % --- Update last known values (for ZOH) ---
         last_u = u_new;
         last_T_winf_nosat = T_winf_new;
+
+        % --- Get rw angular rate command
+        last_w_rw_cmd = w_cmd_ant + (last_T_winf_nosat / motor.Jrw) * Ts_control;
+
     else
         % --- Hold previous control command (ZOH) ---
         o(i) = NaN; % No control computation cost
@@ -264,13 +320,48 @@ for i = 1:n-1
     % Log the control signal for every step (it will be piecewise constant)
     u(:, i + 1) = last_u;
     T_winf_nosat(:, i + 1) = last_T_winf_nosat;
+    w_cmd(:, i) = last_w_rw_cmd;
+
+
+    %% Actuator model
+    % PID controller
+    e = w_cmd(:,i) - x_rw(1:2:end,i);   %Rw Angular rate error
+
+    % 2. Update integral terms
+    int_e   = int_e_ant + e * dt;
+    % 3. Calculate derivatives of the error (finite differences)
+    e_dot   = (e - e_ant)/dt;
+
+    % 4. Implement derivative filter with Runge-Kutta (4th order)
+    % For surge velocity:
+    k1 = N_u * (e_dot - yf_u);
+    k2 = N_u * (e_dot - (yf_u + k1*dt/2));
+    k3 = N_u * (e_dot - (yf_u + k2*dt/2));
+    k4 = N_u * (e_dot - (yf_u + k3*dt));
+    yf_u = yf_u + (k1 + 2*k2 + 2*k3 + k4)*dt/6;
+
+    % 5. Calculate control signals
+    u_rw(:,i+1) = kp*e + ki*int_e + kd*yf_u;
+    
+    for j = 1:number_of_rw
+        g1_rw = dt * BrushelessModel_simu(x_rw(2*j-1:2*j, i), u_rw(j,i+1), motor);
+        g2_rw = dt * BrushelessModel_simu(x_rw(2*j-1:2*j, i) + 0.5 * g1_rw, u_rw(j,i+1), motor);
+        g3_rw = dt * BrushelessModel_simu(x_rw(2*j-1:2*j, i) + 0.5 * g2_rw, u_rw(j,i+1), motor);
+        g4_rw = dt * BrushelessModel_simu(x_rw(2*j-1:2*j, i) + g3_rw, u_rw(j,i+1), motor);
+        x_rw(2*j-1:2*j, i + 1) = x_rw(2*j-1:2*j, i) + (1 / 6) * (g1_rw + 2 * g2_rw + 2 * g3_rw + g4_rw);        
+    end 
+
+    %% Recover torque from rw
+    acc_ang = (x_rw(1:2:end,i+1)-x_rw(1:2:end,i))/dt; 
+    torque_real(:,i) = motor.Jrw*acc_ang;
 
     %% 5.4. Runge-Kutta 4th order integration for state update
-    T_u = W*last_T_winf_nosat;
+    %T_u = W*last_T_winf_nosat;
+    T_u  = W*torque_real(:,i);
     g1 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i));
     g2 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g1);
     g3 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g2);
-    g4 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + 0.5 * g3);
+    g4 = dt * cubeSatEquationState(Td(:, i), I, T_u, x(:, i) + g3);
     x(:, i + 1) = x(:, i) + (1 / 6) * (g1 + 2 * g2 + 2 * g3 + g4);
     
     if isnan(x(:, i + 1))
@@ -284,6 +375,10 @@ for i = 1:n-1
             waitbar(progress, hWaitbar, sprintf('Progress: %.1f%%', progress * 100));
         end
     end
+
+    int_e_ant = int_e;
+    e_ant = e;
+    w_cmd_ant = w_cmd(:,i);
 end
 sensors.meas = [omega_meas; fillmissing([g_B; m_B; stars_B], 'previous',2)];
 sensors.est = fillmissing(y_est, 'previous',2);
@@ -304,6 +399,8 @@ close(hWaitbar);
         ang_and_axis_est = quat2axang(x_est(1:4,:)');
         error_vec = ang_and_axis_real(:,4) - ang_and_axis_est(:,4);
         indicators.RMSE = sqrt(mean(error_vec.^2));         
+    else
+        indicators = NaN;
     end
 end
 %% 7. Program Functions
