@@ -1,4 +1,4 @@
-function [x, u, T_winf_nosat, x_est, indicators, sensors, error_flag] = simulation_rk4(~,disturbances,simParameters,time)
+function [x, u, T_winf_nosat, x_est, indicators, sensors, actuators, error_flag] = simulation_rk4(~,disturbances,simParameters,time)
 % SIMULATION_RK4 Simulates CubeSat attitude with sampling for sensors and control loop.
 %
 % This version simulates the attitude dynamics of a CubeSat, allowing the
@@ -127,26 +127,21 @@ end
 %%% Actuator parameters
 number_of_rw = simParameters.rw.number;
 W  = simParameters.rw.W;
+
 %%% Brushless models Motor Parameters
-motor.kt   = 0.0254;  %kt 
-motor.Jrw  = 2.55E-05 + 9.25E-6;   %J
-motor.b  = 5.58E-4;  %B
-motor.c  = 0.0000;   %kc
-motor.L  = 0.000403;  %H  
-motor.R  = 1.16;      %R    
-motor.ke = 0.0254;   %ke
+motor.kt   = simParameters.rw.motor.kt;  %kt 
+motor.Jrw  = simParameters.rw.motor.Jrw; %J
+motor.b    = simParameters.rw.motor.b;   %B
+motor.c    = simParameters.rw.motor.c;   %kc
+motor.L    = simParameters.rw.motor.L;   %H  
+motor.R    = simParameters.rw.motor.R;   %R    
+motor.ke   = simParameters.rw.motor.ke;  %ke
 
-%% PID GAINS
-% Controller values
-% kp =  46.6757247986996;
-% ki = 10664.0026657905; 
-% kd = 0.0129761155404371;
-% N_u  = 14046.766238174;
-
-kp = 0.504519552012394;
-ki = 28.7345189644697; 
-kd = -0.000554999924740984;
-N_u  = 289.873462888377;
+%% RW PID GAINS
+kp = simParameters.rw.motor.pid.kp;
+ki = simParameters.rw.motor.pid.ki; 
+kd = simParameters.rw.motor.pid.kd;
+N_u  = simParameters.rw.motor.pid.Nu;
 
 %%Initial conditions
 init.w_rw = 0;
@@ -209,7 +204,7 @@ for i = 1:n-1
         alpha = Ts_gyro / (tau_gyro_filter + Ts_gyro);
         filtered_omega_meas = (1 - alpha) * last_filtered_omega + alpha * current_omega_meas;
     end
-
+    last_filtered_omega = filtered_omega_meas;
     omega_meas(:, i) = current_omega_meas; % Save to history.
     omega_meas_filtered(:,i) = filtered_omega_meas; % Save filtered data to history
 
@@ -382,6 +377,12 @@ for i = 1:n-1
 end
 sensors.meas = [omega_meas; fillmissing([g_B; m_B; stars_B], 'previous',2)];
 sensors.est = fillmissing(y_est, 'previous',2);
+sensors.omega_filtered = omega_meas_filtered;
+
+actuators.w_cmd = w_cmd;
+actuators.x_rw  = x_rw;
+actuators.torque_real = torque_real;
+actuators.u_rw  = u_rw;
 
 close(hWaitbar);
 %% 6. Update performance indices
