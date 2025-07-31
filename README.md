@@ -4,10 +4,18 @@ The design and validation of Attitude Determination and Control Systems (ADCS) f
 
 ![ADCSim main window](figs/main_Guide.jpg)
 
-## Instructions
-First: clone the repository:
-```sh
-   git clone https://github.com/Bespi123/Satellite_ADCS_GUIDE 
-   ```
-Second: Add the current repository to your MATLAB workspace.
-Third: open the ADCS_program.mlapp to open the main window.
+### Installation and Startup
+
+To run the ADCSim software, follow these steps:
+
+1.  **Clone the Repository**
+    [cite_start]Open your terminal or command prompt and clone the public Git repository [cite: 390] to your local machine using the following command:
+    ```sh
+    git clone [https://github.com/Bespi123/Satellite_ADCS_GUIDE](https://github.com/Bespi123/Satellite_ADCS_GUIDE)
+    ```
+
+2.  **Add Folder to MATLAB Path**
+    Open MATLAB. In the "Current Folder" browser, navigate to the cloned `Satellite_ADCS_GUIDE` directory. Right-click on the folder and select **Add to Path > Selected Folders and Subfolders**. This ensures MATLAB can find all the necessary function files.
+
+3.  **Run the Application**
+    Once the path is set, locate the main application file, `ADCS_program.mlapp`, in the "Current Folder" browser and double-click it to run. [cite_start]This will launch the main ADCSim Graphical User Interface (GUI)[cite: 408].
