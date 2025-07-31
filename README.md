@@ -18,4 +18,7 @@ To run the ADCSim software, follow these steps:
     Open MATLAB. In the "Current Folder" browser, navigate to the cloned `Satellite_ADCS_GUIDE` directory. Right-click on the folder and select **Add to Path > Selected Folders and Subfolders**. This ensures MATLAB can find all the necessary function files.
 
 3.  **Run the Application**
-    Once the path is set, locate the main application file, `ADCS_program.mlapp`, in the "Current Folder" browser and double-click it to run. [cite_start]This will launch the main ADCSim Graphical User Interface (GUI)[cite: 408].
+    Once the path is set, locate the main application file, `ADCS_program.mlapp`, in the "Current Folder" browser and double-click it to run. This will launch the main ADCSim Graphical User Interface (GUI).
+
+## Credits
+bespi123
