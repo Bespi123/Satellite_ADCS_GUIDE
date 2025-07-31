@@ -9,7 +9,7 @@ The design and validation of Attitude Determination and Control Systems (ADCS) f
 To run the ADCSim software, follow these steps:
 
 1.  **Clone the Repository**
-    [cite_start]Open your terminal or command prompt and clone the public Git repository [cite: 390] to your local machine using the following command:
+    Open your terminal or command prompt and clone the public Git repository to your local machine using the following command:
     ```sh
     git clone [https://github.com/Bespi123/Satellite_ADCS_GUIDE](https://github.com/Bespi123/Satellite_ADCS_GUIDE)
     ```
