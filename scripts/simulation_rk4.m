@@ -36,7 +36,11 @@ function [x, u, T_winf_nosat, x_est, indicators, sensors, actuators, error_flag]
 %     runs at the lower frequency of the attitude sensors. This is the standard
 %     and most effective implementation.
 % ----------------------------------------------------------------------------------
+%% Imports
+%%% Import adsim utilities
 import adcsim.utils.*
+%%% Import environment to use python libraries
+pyenv("Version", "D:\git\Satellite_ADCS_GUIDE\.venv\Scripts\python.exe"); 
 
 %% 1. Parameter Recovery and Initialization
 %%% Time parameters assuming uniform time steps
@@ -68,7 +72,8 @@ g_I      = [0,0,1]';  % Gravitational acceleration vector in inertial frame
 std_acc  = simParameters.sensors.acc.std;  % Standard deviation
 bias_acc = simParameters.sensors.acc.bias; % Bias of accelerometer
 %%% Magnetometer sensor
-m_I      = [0,1,0]';  % Magnetometer reference direction (in inertial frame)
+%m_I      = [0,1,0]';  % Magnetometer reference direction (in inertial frame)
+m_I      = [1,0,0]';  
 std_mag  = simParameters.sensors.mag.std;  % Standard deviation
 bias_mag = simParameters.sensors.mag.bias; % Bias of magnetometer
 %%% Gyroscope sensor
@@ -76,7 +81,8 @@ bias_gyro = simParameters.sensors.gyro.bias;  % Gyroscope bias
 std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
 
 %%% Gyro filter time constant
-tau_gyro_filter = 0.1;
+simParameters.sensors.gyro.tau = 0.1;
+%tau_gyro_filter = 0.1;
 %tau_gyro_filter = simParameters.sensors.gyro.filter_tau;
 
 % Retrieve sampling times from the parameters structure.
@@ -95,17 +101,18 @@ if steps_control < 1, steps_control = 1; end
 %%% Star Sensor
 if simParameters.sensors.star.enable == 1
     number_of_stars = simParameters.sensors.star.numberOfStars;
-    % Generate random star vectors in the inertial frame
-    theta = 2*pi*rand(1, number_of_stars);
-    phi = acos(2*rand(1, number_of_stars) - 1);
-    x_I = sin(phi) .* cos(theta); y_I = sin(phi) .* sin(theta); z_I = cos(phi);
-    stars_I = [x_I; y_I; z_I];
+%    % Generate random star vectors in the inertial frame
+%    theta = 2*pi*rand(1, number_of_stars);
+%    phi = acos(2*rand(1, number_of_stars) - 1);
+%    x_I = sin(phi) .* cos(theta); y_I = sin(phi) .* sin(theta); z_I = cos(phi);
+%    stars_I = [x_I; y_I; z_I];
     bias_star = simParameters.sensors.star.bias;
     std_star  = simParameters.sensors.star.std;
-else
-    number_of_stars = 0;
-    stars_I = [];
+%else
+%    number_of_stars = 0;
+%    stars_I = [];
 end
+
 %%% EKF gains
 if simParameters.ekf.equalModel
     if simParameters.sensors.star.enable == 1, std_star_ekf = std_star; end
@@ -126,6 +133,7 @@ if simParameters.sensors.star.enable == 1
 else
     R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2));
 end
+
 %%% Actuator parameters
 number_of_rw = simParameters.rw.number;
 W  = simParameters.rw.W;
@@ -164,26 +172,45 @@ T_winf_nosat(:,1) = zeros(number_of_rw, 1);
 x_rw(:,1) = repmat([init.w_rw, init.current],1,number_of_rw)';
 u_rw(:,1) = zeros(number_of_rw,1);
 w_cmd_ant = zeros(number_of_rw,1);
-last_filtered_omega = 0;
 
 % Initialize containers for the last known measurement/calculation (Zero-Order Hold).
-last_omega_meas = simParameters.initialValues.Wo;
 last_u = zeros(number_of_rw,1);
 last_T_winf_nosat = zeros(number_of_rw, 1);
+
+% Initialize simulation objects
+mySatellite = adcsim.satellite.Satellite(simParameters.initialValues, I);
+reactionWheels = adcsim.actuators.ReactionWheelAssembly(simParameters.rw);
+myIMU =  adcsim.sensors.IMU(simParameters.sensors, g_I, m_I);
+myStarSensor = adcsim.sensors.StarTracker(simParameters.sensors.star);
+myEKF = adcsim.AHRS_algorithms.AttitudeEKF(simParameters.ekf, myIMU, myStarSensor);
+
 
 % Get the initial rotation matrix from the true state.
 R_init = my_quat2rot(x(1:4, 1));
 
 % Simulate an initial, sensor reading. 
-g_B(:,1) = get_accelerometer_reading(R_init, g_I, std_acc, bias_acc); 
-m_B(:,1) = get_magnetometer_reading(R_init, m_I, std_mag, bias_mag); 
+g_B(:,1) = myIMU.getAccelerometerReading(R_init); 
+m_B(:,1) = myIMU.getMagnetometerReading(R_init); 
+
 if simParameters.sensors.star.enable == 1
-    stars_B(:,1) = get_star_tracker_reading(R_init, stars_I, std_star, bias_star, number_of_stars);
+    stars_B(:,1) = myStarSensor.getReading(R_init);
 end
 
-% Initialize simulation objects
-mySatellite = adcsim.satellite.Satellite(simParameters.initialValues, I);
-reactionWheels = adcsim.actuators.ReactionWheelAssembly(simParameters.rw);
+
+% 1. Crear la instancia del EKF de Python
+disp('Creando instancia de ahrs.filters.EKF de Python...');
+ekf_py = py.ahrs.filters.EKF(pyargs('frequency', 1/dt, 'R', R_k, 'Q', Q_gyro)); % Pasamos parámetros importantes
+
+% 2. Importar la función de inicialización de Python
+% 3. Inicializar el primer estado estimado
+% Usamos la primera lectura del acelerómetro, igual que en el ejemplo simple
+q0_est_py = py.ahrs.common.orientation.acc2q(g_B(:,1)'); % Aseguramos que sea una fila
+x_est(:,1) = [double(q0_est_py)'; zeros(3,1)]; % Quaternion + bias (asumido cero)
+
+
+myEKF.initializeWithTriad(g_B(:,1), m_B(:,1));
+x_est(:,1) = myEKF.x_est;
+
 
 %% 4. Previous calculations to optimize the simulation
 Wd_dot = diff(wd')'./diff(t);
@@ -193,81 +220,57 @@ for i = 1:n-1
     %% 5.1. Sensor models (add noise, bias and SAMPLING)
     % Gyroscope model with sampling.
     if mod(i-1, steps_gyro) == 0 || i==1
-        current_omega_meas = get_gyroscope_reading(x(5:7, i), std_gyro, bias_gyro);
-        
-        % First-Order Low-Pass Filter for Gyroscope Measurement
-        alpha = Ts_gyro / (tau_gyro_filter + Ts_gyro);
-        filtered_omega_meas = (1 - alpha) * last_filtered_omega + alpha * current_omega_meas;
+        current_omega_meas  = myIMU.getGyroscopeReading(x(5:7, i));
+        filtered_omega_meas = myIMU.filterGyroscopeReading(current_omega_meas, Ts_gyro);
     end
-    last_filtered_omega = filtered_omega_meas;
-    omega_meas(:, i) = current_omega_meas; % Save to history.
+    omega_meas(:, i) = current_omega_meas;          % Save to history.
     omega_meas_filtered(:,i) = filtered_omega_meas; % Save filtered data to history
 
     %% 5.2. EKF - Extended Kalman Filter
-    % --- EKF Initial Guess (TRIAD at first step) ---
-    if i == 1
-        if simParameters.ekf.enable == 1
-            % Use initial measurements for the TRIAD algorithm.
-            x_est(1:4, i) = triad_algorithm(g_I, m_I, g_B(:,1), m_B(:,1));
-        else
-            x_est(1:4, i) = x(1:4,i);
-        end
-    end
-    
-    
+        
     % --- EKF Prediction Step (always runs at high frequency) ---
     % The prediction step runs at each time step 'dt' using the
     % most recent gyroscope measurement (which may be a held measurement).
-    A = [eye(4), -0.5 *dt* xi_matrix(x_est(1:4, i)); zeros(3, 4), eye(3)];
-    B = 1/2 * dt * [xi_matrix(x_est(1:4, i)); zeros(3, 3)];
+    %%myEKF.predict(filtered_omega_meas, dt);
 
-    %x_pred = A * x_est(:, i) + B * omega_meas(:, i);
-    x_pred = A * x_est(:, i) + B * omega_meas_filtered(:, i);
 
-    Q = dt*[0.25*xi_matrix(x_est(1:4,i))*Q_gyro*xi_matrix(x_est(1:4,i))', zeros(4,3);
-          zeros(3,4), Q_gyro];
-    P_pred = A * P_cov_ant * A' + Q; 
-   
-
-    % --- EKF Correction Step (runs only when attitude measurements are available) ---
-    if mod(i-1, steps_attitude) == 0
-        % Generate new attitude sensor measurements using helper functions
+    % Generate new attitude sensor measurements using helper functions
         R = my_quat2rot(x(1:4, i));
-        g_B(:,i) = get_accelerometer_reading(R, g_I, std_acc, bias_acc);
-        m_B(:,i) = get_magnetometer_reading(R, m_I, std_mag, bias_mag);
-        
-        if simParameters.sensors.star.enable == 1 
-            stars_B(:,i) = get_star_tracker_reading(R, stars_I, std_star, bias_star, number_of_stars);
-            y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
-        else
-            y = [g_B(:,i); m_B(:,i)];
-        end
-        
-        % Perform the correction
-        C = measurement_jacobian(x_pred(1:4), g_I, m_I, stars_I);
-        y_est_pred = C * [x_pred(1:4); zeros(3,1)]; % Predicted measurement (only depends on quaternion)
-        y_est(:,i) = y_est_pred;
-        k_K = P_pred * C' / (C * P_pred * C' + R_k);  % Kalman gain
-        
-        x_est(:, i + 1) = x_pred + k_K * (y - y_est(:,i)); % Correct state
-        P_cov = (eye(7) - k_K * C) * P_pred; % Correct covariance
-    else
-        % If no new measurement, the next state is simply the predicted state
-        x_est(:, i + 1) = x_pred;
-        P_cov = P_pred;
-    end
+        g_B(:,i) = myIMU.getAccelerometerReading(R);
+        m_B(:,i) = myIMU.getMagnetometerReading(R);
+
+        q_new_py = ekf_py.update(x_est(1:4, i)', filtered_omega_meas', g_B(:,i)', m_B(:,i)');
+        x_est(1:4, i + 1) = double(q_new_py)';
+     
+    % % % --- EKF Correction Step (runs only when attitude measurements are available) ---
+    % % if mod(i-1, steps_attitude) == 0
+    % %     % Generate new attitude sensor measurements using helper functions
+    % %     R = my_quat2rot(x(1:4, i));
+    % %     g_B(:,i) = myIMU.getAccelerometerReading(R);
+    % %     m_B(:,i) = myIMU.getMagnetometerReading(R);
+    % % 
+    % %     if simParameters.sensors.star.enable == 1 
+    % %         stars_B(:,i)  = myStarSensor.getReading(R);
+    % %         y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
+    % %     else
+    % %         y = [g_B(:,i); m_B(:,i)];
+    % %     end
+    % % 
+    % %     % Perform the correction
+    % %     %myEKF.correct(y);
+    % % 
+    % %     q_new_py = ekf_py.update(x_est(1:4, i)', filtered_omega_meas', g_B(:,i)', m_B(:,i)');
+    % %     x_est(1:4, i + 1) = double(q_new_py)';
+    % % 
+    % % end
     
-    % Normalize quaternion and update covariance for the next iteration
-    x_est(1:4, i + 1) = x_est(1:4, i + 1) / norm(x_est(1:4, i + 1));
-    if x_est(1, i + 1) < 0, x_est(1:4, i + 1) = -x_est(1:4, i + 1); end
-    P_cov_ant = P_cov;
+    %x_est(:, i + 1) = myEKF.x_est;
 
     %% 5.3. Control Law (runs at its own sampling rate Ts_control)
     if mod(i-1, steps_control) == 0
         % --- Calculate new control command ---
         if simParameters.ekf.enable == 1
             %%% Use sensors model as feedback signal
-            %feed_est = [x_est(1:4,i); omega_meas(:,i)];
             feed_est = [x_est(1:4,i); omega_meas_filtered(:,i)];
         else
             %%% Use ideal signals as feedback
@@ -364,15 +367,7 @@ close(hWaitbar);
         indicators = NaN;
     end
 end
-%% 7. Program Functions
-function Xi = xi_matrix(q)
-% xi_matrix calculates a 4x3 matrix from a 4-element vector q.
-% Developed by bespi123
-    Xi = [ -q(2), -q(3), -q(4);
-            q(1), -q(4),  q(3);
-            q(4),  q(1), -q(2);
-           -q(3),  q(2),  q(1) ];
-end
+% % % %% 7. Program Functions
 function R = my_quat2rot(q)
 % my_quat2rot Converts a quaternion to a 3x3 rotation matrix.
 % Developed by bespi123
@@ -382,63 +377,36 @@ function R = my_quat2rot(q)
          2*(q1*q2 + q0*q3), 1 - 2*(q1^2 + q3^2), 2*(q2*q3 - q0*q1);
          2*(q1*q3 - q0*q2), 2*(q2*q3 + q0*q1), 1 - 2*(q1^2 + q2^2)];
 end
-function C = measurement_jacobian(q, g_I, m_I, star_I)
-% This function calculates the measurement Jacobian matrix for an EKF.
-% Developed by bespi123
-    q0 = q(1); q1 = q(2); q2 = q(3); q3 = q(4);
-    gx = g_I(1); gy = g_I(2); gz = g_I(3);
-    rx = m_I(1); ry = m_I(2); rz = m_I(3);
-    C_g = 2*[gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, -gx*q2 + gy*q1 - gz*q0, -gx*q3 + gy*q0 + gz*q1, 0, 0, 0;
-            -gx*q3 + gy*q0 + gz*q1,  gx*q2 - gy*q1 + gz*q0,  gx*q1 + gy*q2 + gz*q3, -gx*q0 - gy*q3 + gz*q2, 0, 0, 0;
-             gx*q2 - gy*q1 + gz*q0,  gx*q3 - gy*q0 - gz*q1,  gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, 0, 0, 0];
-    C_m = 2*[rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, -rx*q2 + ry*q1 - rz*q0, -rx*q3 + ry*q0 + rz*q1, 0, 0, 0;
-            -rx*q3 + ry*q0 + rz*q1,  rx*q2 - ry*q1 + rz*q0,  rx*q1 + ry*q2 + rz*q3, -rx*q0 - ry*q3 + rz*q2, 0, 0, 0;
-             rx*q2 - ry*q1 + rz*q0,  rx*q3 - ry*q0 - rz*q1,  rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, 0, 0, 0];
-    stars_num = size(star_I,2);
-    C_star = NaN(3*stars_num,7);
-    for i=1:stars_num
-        star_x = star_I(1,i); star_y = star_I(2,i); star_z = star_I(3,i);
-        index1 = ((i-1)*3+1); index2 = (index1+3)-1;
-        C_star(index1:index2,:) = 2*[star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q2 + star_y*q1 - star_z*q0, -star_x*q3 + star_y*q0 + star_z*q1, 0, 0, 0;
-            -star_x*q3 + star_y*q0 + star_z*q1,  star_x*q2 - star_y*q1 + star_z*q0,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q0 - star_y*q3 + star_z*q2, 0, 0, 0;
-             star_x*q2 - star_y*q1 + star_z*q0,  star_x*q3 - star_y*q0 - star_z*q1,  star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, 0, 0, 0];
-    end
-    C = [C_g; C_m; C_star];
-end
-function q_triad = triad_algorithm(r1,r2,b1,b2)
-% triad_algorithm Calculates the attitude matrix using the TRIAD algorithm.
-% Developed by bespi123
-    r1 = reshape(r1, [], 1); r2 = reshape(r2, [], 1); 
-    b1 = reshape(b1, [], 1); b2 = reshape(b2, [], 1);
-    v2 = cross(r1,r2) / norm(cross(r1,r2));
-    w2 = cross(b1,b2) / norm(cross(b1,b2));
-    A_triad = b1*r1' + (cross(b1,w2))*(cross(r1,v2))' + w2*v2';
-    q_triad = dcm2quat(A_triad)';
-end
-
-function gyro_B_meas = get_gyroscope_reading(omega, std_gyro, bias_gyro)
-    W_gyro = std_gyro .* randn(3, 1);                    % Random noise
-    gyro_B_meas = omega + W_gyro + bias_gyro; % Gyroscope measurement
-end
-
-function g_B_meas = get_accelerometer_reading(R, g_I, std_acc, bias_acc)
-% Simulates an accelerometer reading.
-    W_acc = std_acc .* randn(3, 1);
-    g_B_meas = R' * g_I + W_acc + bias_acc;
-    g_B_meas = g_B_meas / norm(g_B_meas);
-end
-
-function m_B_meas = get_magnetometer_reading(R, m_I, std_mag, bias_mag)
-% Simulates a magnetometer reading.
-    W_mag = std_mag .* randn(3, 1);
-    m_B_meas = R' * m_I + W_mag + bias_mag;
-    m_B_meas = m_B_meas / norm(m_B_meas);
-end
-
-function stars_B_meas = get_star_tracker_reading(R, stars_I, std_star, bias_star, num_stars)
-% Simulates a star tracker reading for multiple stars.
-    W_star = std_star .* randn(3, num_stars);
-    stars_B_temp = R' * stars_I + W_star + repmat(bias_star, 1, num_stars);
-    stars_B_temp = stars_B_temp ./ vecnorm(stars_B_temp, 2);
-    stars_B_meas = stars_B_temp(:); % Reshape into a column vector
-end
+% % % function C = measurement_jacobian(q, g_I, m_I, star_I)
+% % % % This function calculates the measurement Jacobian matrix for an EKF.
+% % % % Developed by bespi123
+% % %     q0 = q(1); q1 = q(2); q2 = q(3); q3 = q(4);
+% % %     gx = g_I(1); gy = g_I(2); gz = g_I(3);
+% % %     rx = m_I(1); ry = m_I(2); rz = m_I(3);
+% % %     C_g = 2*[gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, -gx*q2 + gy*q1 - gz*q0, -gx*q3 + gy*q0 + gz*q1, 0, 0, 0;
+% % %             -gx*q3 + gy*q0 + gz*q1,  gx*q2 - gy*q1 + gz*q0,  gx*q1 + gy*q2 + gz*q3, -gx*q0 - gy*q3 + gz*q2, 0, 0, 0;
+% % %              gx*q2 - gy*q1 + gz*q0,  gx*q3 - gy*q0 - gz*q1,  gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, 0, 0, 0];
+% % %     C_m = 2*[rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, -rx*q2 + ry*q1 - rz*q0, -rx*q3 + ry*q0 + rz*q1, 0, 0, 0;
+% % %             -rx*q3 + ry*q0 + rz*q1,  rx*q2 - ry*q1 + rz*q0,  rx*q1 + ry*q2 + rz*q3, -rx*q0 - ry*q3 + rz*q2, 0, 0, 0;
+% % %              rx*q2 - ry*q1 + rz*q0,  rx*q3 - ry*q0 - rz*q1,  rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, 0, 0, 0];
+% % %     stars_num = size(star_I,2);
+% % %     C_star = NaN(3*stars_num,7);
+% % %     for i=1:stars_num
+% % %         star_x = star_I(1,i); star_y = star_I(2,i); star_z = star_I(3,i);
+% % %         index1 = ((i-1)*3+1); index2 = (index1+3)-1;
+% % %         C_star(index1:index2,:) = 2*[star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q2 + star_y*q1 - star_z*q0, -star_x*q3 + star_y*q0 + star_z*q1, 0, 0, 0;
+% % %             -star_x*q3 + star_y*q0 + star_z*q1,  star_x*q2 - star_y*q1 + star_z*q0,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q0 - star_y*q3 + star_z*q2, 0, 0, 0;
+% % %              star_x*q2 - star_y*q1 + star_z*q0,  star_x*q3 - star_y*q0 - star_z*q1,  star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, 0, 0, 0];
+% % %     end
+% % %     C = [C_g; C_m; C_star];
+% % % end
+% % % function q_triad = triad_algorithm(r1,r2,b1,b2)
+% % % % triad_algorithm Calculates the attitude matrix using the TRIAD algorithm.
+% % % % Developed by bespi123
+% % %     r1 = reshape(r1, [], 1); r2 = reshape(r2, [], 1); 
+% % %     b1 = reshape(b1, [], 1); b2 = reshape(b2, [], 1);
+% % %     v2 = cross(r1,r2) / norm(cross(r1,r2));
+% % %     w2 = cross(b1,b2) / norm(cross(b1,b2));
+% % %     A_triad = b1*r1' + (cross(b1,w2))*(cross(r1,v2))' + w2*v2';
+% % %     q_triad = dcm2quat(A_triad)';
+% % % end
