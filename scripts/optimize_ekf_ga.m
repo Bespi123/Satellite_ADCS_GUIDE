@@ -40,8 +40,8 @@ function optimal_params = optimize_ekf_ga(~, disturbances, simParameters, time)
     % Options for the 'ga' optimizer.
     % THIS IS THE MOST IMPORTANT PART FOR GETTING GOOD RESULTS!
     options = optimoptions('ga', ...
-        'PopulationSize', 5, ... % RECOMMENDATION: Increase. A value like 5 is too low to explore. Try 50 or 100.
-        'MaxGenerations', 10, ... % RECOMMENDATION: Increase. 10 generations is very few. Try 50 or 100.
+        'PopulationSize', 3, ... % RECOMMENDATION: Increase. A value like 5 is too low to explore. Try 50 or 100.
+        'MaxGenerations', 5, ... % RECOMMENDATION: Increase. 10 generations is very few. Try 50 or 100.
         'Display', 'iter', ...    % Displays progress in the console.
         'PlotFcn', {@gaplotbestf, @gaplotstopping}, ... % Displays real-time progress plots.
         'UseParallel', true, ...  % Speeds up optimization if you have the Parallel Computing Toolbox.

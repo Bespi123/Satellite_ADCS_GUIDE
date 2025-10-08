@@ -31,6 +31,8 @@ print("Cuaternión inicial estimado a partir del acelerómetro:", Q[0])
 for t in range(1, num_samples):
     Q[t] = ekf.update(Q[t-1], gyr_data[t], acc_data[t])
 
+print(ekf.m_ref)
+print(ekf.a_ref)
 print("Procesamiento completado.")
 print("Forma del array de cuaterniones resultante:", Q.shape)
 print("Ejemplo del primer cuaternión calculado:", Q[0])

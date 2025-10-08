@@ -40,7 +40,7 @@ function [x, u, T_winf_nosat, x_est, indicators, sensors, actuators, error_flag]
 %%% Import adsim utilities
 import adcsim.utils.*
 %%% Import environment to use python libraries
-pyenv("Version", "D:\git\Satellite_ADCS_GUIDE\.venv\Scripts\python.exe"); 
+%pyenv("Version", "D:\git\Satellite_ADCS_GUIDE\.venv\Scripts\python.exe"); 
 
 %% 1. Parameter Recovery and Initialization
 %%% Time parameters assuming uniform time steps
@@ -72,8 +72,7 @@ g_I      = [0,0,1]';  % Gravitational acceleration vector in inertial frame
 std_acc  = simParameters.sensors.acc.std;  % Standard deviation
 bias_acc = simParameters.sensors.acc.bias; % Bias of accelerometer
 %%% Magnetometer sensor
-%m_I      = [0,1,0]';  % Magnetometer reference direction (in inertial frame)
-m_I      = [1,0,0]';  
+m_I      = [0.7071 ,0 ,0.7071]';  % Magnetometer reference direction (in inertial frame)
 std_mag  = simParameters.sensors.mag.std;  % Standard deviation
 bias_mag = simParameters.sensors.mag.bias; % Bias of magnetometer
 %%% Gyroscope sensor
@@ -82,8 +81,6 @@ std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
 
 %%% Gyro filter time constant
 simParameters.sensors.gyro.tau = 0.1;
-%tau_gyro_filter = 0.1;
-%tau_gyro_filter = simParameters.sensors.gyro.filter_tau;
 
 % Retrieve sampling times from the parameters structure.
 Ts_gyro = simParameters.sensors.gyro.Ts;
@@ -131,6 +128,7 @@ if simParameters.sensors.star.enable == 1
     star_large = kron(eye(number_of_stars), star);
     R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2), star_large);
 else
+    number_of_stars = 0;
     R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2));
 end
 
@@ -182,8 +180,20 @@ mySatellite = adcsim.satellite.Satellite(simParameters.initialValues, I);
 reactionWheels = adcsim.actuators.ReactionWheelAssembly(simParameters.rw);
 myIMU =  adcsim.sensors.IMU(simParameters.sensors, g_I, m_I);
 myStarSensor = adcsim.sensors.StarTracker(simParameters.sensors.star);
-myEKF = adcsim.AHRS_algorithms.AttitudeEKF(simParameters.ekf, myIMU, myStarSensor);
+myEKF = adcsim.AHRS_algorithms.AttitudeEKF(simParameters.ekf, dt, myIMU, myStarSensor);
+madwick_params.beta = 1;
+madwick_params.bias_gain = 0.01;
+myMadwick = adcsim.AHRS_algorithms.MadgwickAHRS(madwick_params, dt, myIMU, myStarSensor);
 
+ukf_params.alpha = 1e-3;
+ukf_params.beta  = 2.0;
+ukf_params.kappa = 0.0;
+ukf_params.gyro.std = std_gyro;
+ukf_params.acc.std  = std_acc;
+ukf_params.mag.std  = std_mag;
+ukf_params.star.std  = std_star;
+
+myUKF = adcsim.AHRS_algorithms.AttitudeUKF(ukf_params, dt, myIMU, myStarSensor);
 
 % Get the initial rotation matrix from the true state.
 R_init = my_quat2rot(x(1:4, 1));
@@ -191,26 +201,15 @@ R_init = my_quat2rot(x(1:4, 1));
 % Simulate an initial, sensor reading. 
 g_B(:,1) = myIMU.getAccelerometerReading(R_init); 
 m_B(:,1) = myIMU.getMagnetometerReading(R_init); 
+myEKF.initializeWithTriad(g_B(:,1), m_B(:,1));
 
 if simParameters.sensors.star.enable == 1
     stars_B(:,1) = myStarSensor.getReading(R_init);
 end
 
-
-% 1. Crear la instancia del EKF de Python
-disp('Creando instancia de ahrs.filters.EKF de Python...');
-ekf_py = py.ahrs.filters.EKF(pyargs('frequency', 1/dt, 'R', R_k, 'Q', Q_gyro)); % Pasamos parámetros importantes
-
-% 2. Importar la función de inicialización de Python
-% 3. Inicializar el primer estado estimado
-% Usamos la primera lectura del acelerómetro, igual que en el ejemplo simple
-q0_est_py = py.ahrs.common.orientation.acc2q(g_B(:,1)'); % Aseguramos que sea una fila
-x_est(:,1) = [double(q0_est_py)'; zeros(3,1)]; % Quaternion + bias (asumido cero)
-
-
-myEKF.initializeWithTriad(g_B(:,1), m_B(:,1));
-x_est(:,1) = myEKF.x_est;
-
+%simParameters.ahrs.flag = 'MADGWICK';
+%simParameters.ahrs.flag = 'EKF';
+simParameters.ahrs.flag = 'UKF';
 
 %% 4. Previous calculations to optimize the simulation
 Wd_dot = diff(wd')'./diff(t);
@@ -225,53 +224,78 @@ for i = 1:n-1
     end
     omega_meas(:, i) = current_omega_meas;          % Save to history.
     omega_meas_filtered(:,i) = filtered_omega_meas; % Save filtered data to history
-
-    %% 5.2. EKF - Extended Kalman Filter
-        
-    % --- EKF Prediction Step (always runs at high frequency) ---
-    % The prediction step runs at each time step 'dt' using the
-    % most recent gyroscope measurement (which may be a held measurement).
-    %%myEKF.predict(filtered_omega_meas, dt);
-
-
-    % Generate new attitude sensor measurements using helper functions
-        R = my_quat2rot(x(1:4, i));
-        g_B(:,i) = myIMU.getAccelerometerReading(R);
-        m_B(:,i) = myIMU.getMagnetometerReading(R);
-
-        q_new_py = ekf_py.update(x_est(1:4, i)', filtered_omega_meas', g_B(:,i)', m_B(:,i)');
-        x_est(1:4, i + 1) = double(q_new_py)';
-     
-    % % % --- EKF Correction Step (runs only when attitude measurements are available) ---
-    % % if mod(i-1, steps_attitude) == 0
-    % %     % Generate new attitude sensor measurements using helper functions
-    % %     R = my_quat2rot(x(1:4, i));
-    % %     g_B(:,i) = myIMU.getAccelerometerReading(R);
-    % %     m_B(:,i) = myIMU.getMagnetometerReading(R);
-    % % 
-    % %     if simParameters.sensors.star.enable == 1 
-    % %         stars_B(:,i)  = myStarSensor.getReading(R);
-    % %         y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
-    % %     else
-    % %         y = [g_B(:,i); m_B(:,i)];
-    % %     end
-    % % 
-    % %     % Perform the correction
-    % %     %myEKF.correct(y);
-    % % 
-    % %     q_new_py = ekf_py.update(x_est(1:4, i)', filtered_omega_meas', g_B(:,i)', m_B(:,i)');
-    % %     x_est(1:4, i + 1) = double(q_new_py)';
-    % % 
-    % % end
     
-    %x_est(:, i + 1) = myEKF.x_est;
+    %% 5.2. EKF - Extended Kalman Filter
+    if strcmp(simParameters.ahrs.flag, 'EKF')
+        % --- EKF Prediction Step (always runs at high frequency) ---
+        % The prediction step runs at each time step 'dt' using the
+        % most recent gyroscope measurement (which may be a held measurement).
+        myEKF.predict(filtered_omega_meas);
 
+        %%% --- EKF Correction Step (runs only when attitude measurements are available) ---
+        if mod(i-1, steps_attitude) == 0
+            % Generate new attitude sensor measurements using helper functions
+            R = my_quat2rot(x(1:4, i));
+            g_B(:,i) = myIMU.getAccelerometerReading(R);
+            m_B(:,i) = myIMU.getMagnetometerReading(R);
+
+            if simParameters.sensors.star.enable == 1 
+                stars_B(:,i)  = myStarSensor.getReading(R);
+                y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
+            else
+                y = [g_B(:,i); m_B(:,i)];
+            end
+
+            % Perform the correction
+            myEKF.correct(y); 
+        end
+        x_est(:, i + 1) = myEKF.x_est';
+    elseif strcmp(simParameters.ahrs.flag, 'MADGWICK')
+        %% Madwick Algorithm
+        % Generate new attitude sensor measurements using helper functions
+        myMadwick = myMadwick.Predict(filtered_omega_meas);
+        if mod(i-1, steps_attitude) == 0
+            R = my_quat2rot(x(1:4, i));
+            g_B(:,i) = myIMU.getAccelerometerReading(R);
+            m_B(:,i) = myIMU.getMagnetometerReading(R);
+            if simParameters.sensors.star.enable == 1 
+                stars_B(:,i)  = myStarSensor.getReading(R);
+                y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
+            else
+                y = [g_B(:,i); m_B(:,i)];
+            end
+            myMadwick = myMadwick.Update(filtered_omega_meas, y);
+        end
+       
+        x_est(1:4, i + 1) = myMadwick.x_est;
+        x_est(5:7, i + 1) = myMadwick.gyro_bias;
+    else
+       % Generate new attitude sensor measurements using helper functions
+        myUKF.Predict(filtered_omega_meas);
+        if mod(i-1, steps_attitude) == 0
+            R = my_quat2rot(x(1:4, i));
+            g_B(:,i) = myIMU.getAccelerometerReading(R);
+            m_B(:,i) = myIMU.getMagnetometerReading(R);
+            if simParameters.sensors.star.enable == 1 
+                stars_B(:,i)  = myStarSensor.getReading(R);
+                y = [g_B(:,i); m_B(:,i); stars_B(:,i)];
+            else
+                y = [g_B(:,i); m_B(:,i)];
+            end
+            myUKF.Correct(y);
+        end
+
+
+       x_est(1:4, i + 1) = myUKF.x_est;
+       x_est(5:7, i + 1) = zeros(3,1);
+    end
+    
     %% 5.3. Control Law (runs at its own sampling rate Ts_control)
     if mod(i-1, steps_control) == 0
         % --- Calculate new control command ---
         if simParameters.ekf.enable == 1
             %%% Use sensors model as feedback signal
-            feed_est = [x_est(1:4,i); omega_meas_filtered(:,i)];
+            feed_est = [x_est(1:4,i); omega_meas_filtered(:,i)-x_est(5:7,i)];
         else
             %%% Use ideal signals as feedback
             feed_est = x(:, i);
@@ -364,6 +388,7 @@ close(hWaitbar);
         error_vec = ang_and_axis_real(:,4) - ang_and_axis_est(:,4);
         indicators.RMSE = sqrt(mean(error_vec.^2));         
     else
+        errordlg('Unstable System', 'ERROR');
         indicators = NaN;
     end
 end
@@ -377,36 +402,3 @@ function R = my_quat2rot(q)
          2*(q1*q2 + q0*q3), 1 - 2*(q1^2 + q3^2), 2*(q2*q3 - q0*q1);
          2*(q1*q3 - q0*q2), 2*(q2*q3 + q0*q1), 1 - 2*(q1^2 + q2^2)];
 end
-% % % function C = measurement_jacobian(q, g_I, m_I, star_I)
-% % % % This function calculates the measurement Jacobian matrix for an EKF.
-% % % % Developed by bespi123
-% % %     q0 = q(1); q1 = q(2); q2 = q(3); q3 = q(4);
-% % %     gx = g_I(1); gy = g_I(2); gz = g_I(3);
-% % %     rx = m_I(1); ry = m_I(2); rz = m_I(3);
-% % %     C_g = 2*[gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, -gx*q2 + gy*q1 - gz*q0, -gx*q3 + gy*q0 + gz*q1, 0, 0, 0;
-% % %             -gx*q3 + gy*q0 + gz*q1,  gx*q2 - gy*q1 + gz*q0,  gx*q1 + gy*q2 + gz*q3, -gx*q0 - gy*q3 + gz*q2, 0, 0, 0;
-% % %              gx*q2 - gy*q1 + gz*q0,  gx*q3 - gy*q0 - gz*q1,  gx*q0 + gy*q3 - gz*q2,  gx*q1 + gy*q2 + gz*q3, 0, 0, 0];
-% % %     C_m = 2*[rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, -rx*q2 + ry*q1 - rz*q0, -rx*q3 + ry*q0 + rz*q1, 0, 0, 0;
-% % %             -rx*q3 + ry*q0 + rz*q1,  rx*q2 - ry*q1 + rz*q0,  rx*q1 + ry*q2 + rz*q3, -rx*q0 - ry*q3 + rz*q2, 0, 0, 0;
-% % %              rx*q2 - ry*q1 + rz*q0,  rx*q3 - ry*q0 - rz*q1,  rx*q0 + ry*q3 - rz*q2,  rx*q1 + ry*q2 + rz*q3, 0, 0, 0];
-% % %     stars_num = size(star_I,2);
-% % %     C_star = NaN(3*stars_num,7);
-% % %     for i=1:stars_num
-% % %         star_x = star_I(1,i); star_y = star_I(2,i); star_z = star_I(3,i);
-% % %         index1 = ((i-1)*3+1); index2 = (index1+3)-1;
-% % %         C_star(index1:index2,:) = 2*[star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q2 + star_y*q1 - star_z*q0, -star_x*q3 + star_y*q0 + star_z*q1, 0, 0, 0;
-% % %             -star_x*q3 + star_y*q0 + star_z*q1,  star_x*q2 - star_y*q1 + star_z*q0,  star_x*q1 + star_y*q2 + star_z*q3, -star_x*q0 - star_y*q3 + star_z*q2, 0, 0, 0;
-% % %              star_x*q2 - star_y*q1 + star_z*q0,  star_x*q3 - star_y*q0 - star_z*q1,  star_x*q0 + star_y*q3 - star_z*q2,  star_x*q1 + star_y*q2 + star_z*q3, 0, 0, 0];
-% % %     end
-% % %     C = [C_g; C_m; C_star];
-% % % end
-% % % function q_triad = triad_algorithm(r1,r2,b1,b2)
-% % % % triad_algorithm Calculates the attitude matrix using the TRIAD algorithm.
-% % % % Developed by bespi123
-% % %     r1 = reshape(r1, [], 1); r2 = reshape(r2, [], 1); 
-% % %     b1 = reshape(b1, [], 1); b2 = reshape(b2, [], 1);
-% % %     v2 = cross(r1,r2) / norm(cross(r1,r2));
-% % %     w2 = cross(b1,b2) / norm(cross(b1,b2));
-% % %     A_triad = b1*r1' + (cross(b1,w2))*(cross(r1,v2))' + w2*v2';
-% % %     q_triad = dcm2quat(A_triad)';
-% % % end
