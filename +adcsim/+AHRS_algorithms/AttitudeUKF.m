@@ -7,7 +7,7 @@ classdef AttitudeUKF < handle
 %   at the lower frequency of the attitude sensors (accelerometer/magnetometer).
 %
 %   Date          Author          Notes
-%   08/10/2025    Gemini          Separated Predict and Correct steps.
+%   08/10/2025    bespi123        Update code to add star Sensor references.
 
     %% Public Properties
     properties (Access = public)
