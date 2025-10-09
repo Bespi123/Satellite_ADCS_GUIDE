@@ -122,7 +122,11 @@ last_T_winf_nosat = zeros(number_of_rw, 1);
 % Initialize simulation objects from custom classes.
 mySatellite = adcsim.satellite.Satellite(simParameters.initialValues, I);
 reactionWheels = adcsim.actuators.ReactionWheelAssembly(simParameters.rw);
-myIMU =  adcsim.sensors.IMU(simParameters.sensors);
+if (simParameters.sensors_selector.imu.flag)
+    myIMU =  adcsim.sensors.IMU(simParameters.sensors);
+else
+    myIMU =  adcsim.sensors.IMU_Sophisticated(simParameters.sensors_soph);
+end
 myStarSensor = adcsim.sensors.StarTracker(simParameters.sensors.star);
 
 % Initialize AHRS (Attitude and Heading Reference System) objects.
@@ -156,7 +160,8 @@ for i = 1:n-1
     % Gyroscope model with sampling.
     % The gyroscope is read only if the current step is a multiple of `steps_gyro`.
     if mod(i-1, steps_gyro) == 0 || i==1
-        current_omega_meas  = myIMU.getGyroscopeReading(x(5:7, i));
+        %current_omega_meas  = myIMU.getGyroscopeReading(x(5:7, i));
+        current_omega_meas  = myIMU.getGyroscopeReading(x(5:7, i),Ts_gyro);
         filtered_omega_meas = myIMU.filterGyroscopeReading(current_omega_meas, Ts_gyro);
     end
     % The measurement (raw or held from the previous step) is saved to the history.

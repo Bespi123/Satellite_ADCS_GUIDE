@@ -35,7 +35,9 @@ function parameters = simulationParameters(~)
     
     % --- Sensor Model Parameters ---
     % These sections model the imperfections of real-world sensors.
-    
+    % Flag to use sophisticated model (0) or simple model (1)
+    parameters.sensors_selector.imu.flag = 1;
+
     %%% Accelerometer sensor
     % Gravitational acceleration vector in the inertial frame (e.g., pointing towards Earth).
     % This is the 'true' vector that the accelerometer measures to help determine 'down'.
@@ -71,6 +73,48 @@ function parameters = simulationParameters(~)
     parameters.sensors.star.enable = 1;
     % Number of stars (or direction vectors) to be simulated by the star tracker.
     parameters.sensors.star.numberOfStars = 10;
+
+    % --- Sophisticated Sensor Model Parameters ---
+    % These parameters are for the IMU_Sophisticated class, which includes
+    % more complex error sources like bias instability, scale factor, and misalignment.
+
+    %%% Gyroscope (Sophisticated Model)
+    % Initial bias at the start of the simulation [rad/s].
+    parameters.sensors_soph.gyro.initial_bias = [-0.0000541; -0.0001553; -0.00006458];
+    % Gyroscope low-pass filter time constant [s]. Models the sensor's response time.
+    parameters.sensors_soph.gyro.tau = parameters.sensors.gyro.tau;
+    % Standard deviation of the high-frequency white noise [rad/s].
+    parameters.sensors_soph.gyro.std = [0.009; 0.008; 0.007];
+    % Bias Instability (Random Walk) standard deviation [rad/s/sqrt(Hz) or rad/sqrt(s)].
+    % This value dictates how fast the bias drifts. (e.g., from a 10 deg/hr spec).
+    parameters.sensors_soph.gyro.std_RW = 4.8e-5 * [1; 1; 1];
+    % Scale factor errors (e.g., 0.1% error) [dimensionless].
+    parameters.sensors_soph.gyro.scale_factor_errors = 0.001 * [0.5; -0.8; 0.3];
+    % Axis misalignment errors (e.g., 0.2 degrees) [radians].
+    % [m12, m13, m21, m23, m31, m32]
+    parameters.sensors_soph.gyro.misalignment_errors = 0.0035 * [1; -0.5; 0.8; 1.1; -0.9; 0.6];
+    
+    %%% Accelerometer (Sophisticated Model)
+    parameters.sensors_soph.acc.g_I = parameters.sensors.acc.g_I;
+    % Constant bias [m/s^2].
+    parameters.sensors_soph.acc.bias = [0.013127156; 0.010186677; 0.000138897];
+    % Standard deviation of the high-frequency white noise [m/s^2].
+    parameters.sensors_soph.acc.std  = [0.011817097; 0.012306208; 0.015949601];
+    % Scale factor errors (e.g., 0.5% error) [dimensionless].
+    parameters.sensors_soph.acc.scale_factor_errors = 0.005 * [-0.7; 0.4; 0.9];
+    % Axis misalignment errors (e.g., 0.5 degrees) [radians].
+    parameters.sensors_soph.acc.misalignment_errors = 0.0087 * [1; 1; 1; 1; 1; 1];
+
+    %%% Magnetometer (Sophisticated Model)
+    parameters.sensors_soph.mag.m_I = parameters.sensors.mag.m_I;
+    % Constant bias [uT or normalized units].
+    parameters.sensors_soph.mag.bias = [0; 0; 0];
+    % Standard deviation of the high-frequency white noise [uT or normalized units].
+    parameters.sensors_soph.mag.std  = [0.011817097; 0.012306208; 0.015949601];
+    % Scale factor errors (magnetometers are often less accurate, e.g., 2% error) [dimensionless].
+    parameters.sensors_soph.mag.scale_factor_errors = 0.02 * [1.2; -0.8; 0.5];
+    % Axis misalignment errors (e.g., 1.0 degree) [radians].
+    parameters.sensors_soph.mag.misalignment_errors = 0.0175 * [1; 1; 1; 1; 1; 1];
     
     % --- AHRS (Attitude and Heading Reference System) Selection ---
     % The AHRS is the algorithm that fuses sensor data to estimate the attitude.

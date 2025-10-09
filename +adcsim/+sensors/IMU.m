@@ -49,7 +49,7 @@ classdef IMU < handle
             obj.m_I = sensors.mag.m_I;
         end
         
-        function reading = getGyroscopeReading(obj, omega)
+        function reading = getGyroscopeReading(obj, omega, ~)
             %getGyroscopeReading Simulates a gyroscope measurement.
             %   Adds Gaussian noise and a constant bias to the true angular velocity.
             %
