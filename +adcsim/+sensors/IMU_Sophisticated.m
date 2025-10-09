@@ -5,7 +5,8 @@ classdef IMU_Sophisticated < handle
 %   - Scale Factor errors.
 %   - Axis Misalignment (non-orthogonality).
 %   This provides a more realistic simulation of real-world MEMS sensors.
-
+%   Date          Author          Notes
+%   08/20/2025    Bespi123        Create simple Star tracker model
     %% Public Properties
     properties
         Gyroscope       struct  % Models the gyroscope with advanced errors.

@@ -15,7 +15,7 @@ classdef IMU < handle
     end
     
     methods
-        function obj = IMU(sensors, g_I, m_I)
+        function obj = IMU(sensors)
             %IMU Constructor method for the IMU class.
             %   Initializes the sensor models with parameters provided in a struct.
             %
@@ -45,8 +45,8 @@ classdef IMU < handle
             );
 
             % Store the inertial frame reference vectors.
-            obj.g_I = g_I;
-            obj.m_I = m_I;
+            obj.g_I = sensors.acc.g_I;
+            obj.m_I = sensors.mag.m_I;
         end
         
         function reading = getGyroscopeReading(obj, omega)

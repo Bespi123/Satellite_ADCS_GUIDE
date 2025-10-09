@@ -64,11 +64,11 @@ classdef AttitudeUKF < handle
             obj.beta  = ukf_params.beta;
             obj.kappa = ukf_params.kappa;
             
-            obj.Q = diag(ukf_params.gyro.std.^2);
-            R_acc = diag(ukf_params.acc.std.^2);
-            R_mag = diag(ukf_params.mag.std.^2);
+            obj.Q = diag(ukf_params.gyro_std.^2);
+            R_acc = diag(ukf_params.acc_std.^2);
+            R_mag = diag(ukf_params.mag_std.^2);
             if obj.starTracker.enable
-                R_star_single = diag(ukf_params.star.std.^2);
+                R_star_single = diag(ukf_params.star_std.^2);
                 R_star = kron(eye(obj.starTracker.numberOfStars), R_star_single); % Stack R for N stars
                 obj.stars_ref = obj.starTracker.stars_I;
             else

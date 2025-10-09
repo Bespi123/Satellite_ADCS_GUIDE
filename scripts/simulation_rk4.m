@@ -55,32 +55,17 @@ error_flag = 0;
 % Controller gains and initial values
 if simParameters.controller.selector == 1
     %%% Feedback Controller gains
-    P = simParameters.feedback.Peye; 
-    K = simParameters.feedback.Keye;
+    P = simParameters.controller.feedback.Peye; 
+    K = simParameters.controller.feedback.Keye;
 else
     %%% Boskovic Controller gains
-    delta = simParameters.boskController.delta;
-    gamma = simParameters.boskController.gamma;
-    k     = simParameters.boskController.k0;
-    Umax  = simParameters.boskController.Umax;
+    delta = simParameters.controller.boskController.delta;
+    gamma = simParameters.controller.boskController.gamma;
+    k     = simParameters.controller.boskController.k0;
+    Umax  = simParameters.controller.boskController.Umax;
     %%% Previous gains
     k_ant = k; k_dot_ant = 0;
 end
-% Sensor model parameters (inertial frame references)
-%%% Accelerometer sensor
-g_I      = [0,0,1]';  % Gravitational acceleration vector in inertial frame 
-std_acc  = simParameters.sensors.acc.std;  % Standard deviation
-bias_acc = simParameters.sensors.acc.bias; % Bias of accelerometer
-%%% Magnetometer sensor
-m_I      = [0.7071 ,0 ,0.7071]';  % Magnetometer reference direction (in inertial frame)
-std_mag  = simParameters.sensors.mag.std;  % Standard deviation
-bias_mag = simParameters.sensors.mag.bias; % Bias of magnetometer
-%%% Gyroscope sensor
-bias_gyro = simParameters.sensors.gyro.bias;  % Gyroscope bias
-std_gyro  = simParameters.sensors.gyro.std;   % Standard deviation
-
-%%% Gyro filter time constant
-simParameters.sensors.gyro.tau = 0.1;
 
 % Retrieve sampling times from the parameters structure.
 Ts_gyro = simParameters.sensors.gyro.Ts;
@@ -98,38 +83,6 @@ if steps_control < 1, steps_control = 1; end
 %%% Star Sensor
 if simParameters.sensors.star.enable == 1
     number_of_stars = simParameters.sensors.star.numberOfStars;
-%    % Generate random star vectors in the inertial frame
-%    theta = 2*pi*rand(1, number_of_stars);
-%    phi = acos(2*rand(1, number_of_stars) - 1);
-%    x_I = sin(phi) .* cos(theta); y_I = sin(phi) .* sin(theta); z_I = cos(phi);
-%    stars_I = [x_I; y_I; z_I];
-    bias_star = simParameters.sensors.star.bias;
-    std_star  = simParameters.sensors.star.std;
-%else
-%    number_of_stars = 0;
-%    stars_I = [];
-end
-
-%%% EKF gains
-if simParameters.ekf.equalModel
-    if simParameters.sensors.star.enable == 1, std_star_ekf = std_star; end
-    std_acc_ekf  = std_acc; std_mag_ekf  = std_mag; std_gyro_ekf = std_gyro;
-else
-    if simParameters.sensors.star.enable == 1, std_star_ekf = simParameters.ekf.star.std; end
-    std_acc_ekf  = simParameters.ekf.acc.std; std_mag_ekf  = simParameters.ekf.mag.std; std_gyro_ekf = simParameters.ekf.gyro.std;
-end
-%%% Process noise covariance for gyro
-Q_gyro = diag(std_gyro_ekf.^2);
-%%% Initial state covariance matrix P
-P_cov_ant = eye(7);  
-%%% Define measurements covariance matrix R
-if simParameters.sensors.star.enable == 1
-    star = diag(std_star_ekf.^2);
-    star_large = kron(eye(number_of_stars), star);
-    R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2), star_large);
-else
-    number_of_stars = 0;
-    R_k = blkdiag(diag(std_acc_ekf.^2), diag(std_mag_ekf.^2));
 end
 
 %%% Actuator parameters
@@ -137,17 +90,7 @@ number_of_rw = simParameters.rw.number;
 W  = simParameters.rw.W;
 
 %%% Brushless models Motor Parameters
-motor.kt   = simParameters.rw.motor.kt;  %kt [N*m/A] Torque constant
-motor.Jrw  = simParameters.rw.motor.Jrw; %J  [kg*m^2] Rotor inertia
-motor.b    = simParameters.rw.motor.b;   %B  [N*m*s] Viscous friction
-motor.c    = simParameters.rw.motor.c;   %kc [N*m] Coulomb friction
-motor.L    = simParameters.rw.motor.L;   %H  [H] Inductance
-motor.R    = simParameters.rw.motor.R;   %R  [Ω] Resistance
-motor.ke   = simParameters.rw.motor.ke;  %ke [V*s/rad] Back-EMF constant
-
-%%Initial conditions
-init.w_rw = 0;
-init.current = 0; 
+motor = simParameters.rw.motor;
 
 %% 2. Simulation containers
 x = NaN(7,n); u = NaN(3,n); dq = NaN(4,n-1); T_winf_nosat = NaN(number_of_rw,n);
@@ -167,7 +110,7 @@ x(:,1)=[simParameters.initialValues.q0; simParameters.initialValues.Wo];
 u(:,1) = zeros(3,1);  x_est(:,1) = [1, zeros(1,6)]'; 
 T_winf_nosat(:,1) = zeros(number_of_rw, 1);
 
-x_rw(:,1) = repmat([init.w_rw, init.current],1,number_of_rw)';
+x_rw(:,1) = repmat([motor.init.w_rw, motor.init.current],1,number_of_rw)';
 u_rw(:,1) = zeros(number_of_rw,1);
 w_cmd_ant = zeros(number_of_rw,1);
 
@@ -175,28 +118,20 @@ w_cmd_ant = zeros(number_of_rw,1);
 last_u = zeros(number_of_rw,1);
 last_T_winf_nosat = zeros(number_of_rw, 1);
 
-% Initialize simulation objects
+% Initialize satellite objects
 mySatellite = adcsim.satellite.Satellite(simParameters.initialValues, I);
+% Initialize actuator objects
 reactionWheels = adcsim.actuators.ReactionWheelAssembly(simParameters.rw);
-myIMU =  adcsim.sensors.IMU(simParameters.sensors, g_I, m_I);
+% Initialize sensors objects
+myIMU =  adcsim.sensors.IMU(simParameters.sensors);
 myStarSensor = adcsim.sensors.StarTracker(simParameters.sensors.star);
-myEKF = adcsim.AHRS_algorithms.AttitudeEKF(simParameters.ekf, dt, myIMU, myStarSensor);
-madwick_params.beta = 1;
-madwick_params.bias_gain = 0.01;
-myMadwick = adcsim.AHRS_algorithms.MadgwickAHRS(madwick_params, dt, myIMU, myStarSensor);
-
-ukf_params.alpha = 1e-3;
-ukf_params.beta  = 2.0;
-ukf_params.kappa = 0.0;
-ukf_params.gyro.std = std_gyro;
-ukf_params.acc.std  = std_acc;
-ukf_params.mag.std  = std_mag;
-ukf_params.star.std  = std_star;
-
-myUKF = adcsim.AHRS_algorithms.AttitudeUKF(ukf_params, dt, myIMU, myStarSensor);
+% Initialize ahrs objects
+myEKF = adcsim.AHRS_algorithms.AttitudeEKF(simParameters.ahrs.ekf, dt, myIMU, myStarSensor);
+myMadwick = adcsim.AHRS_algorithms.MadgwickAHRS(simParameters.ahrs.madwick, dt, myIMU, myStarSensor);
+myUKF = adcsim.AHRS_algorithms.AttitudeUKF(simParameters.ahrs.ukf, dt, myIMU, myStarSensor);
 
 % Get the initial rotation matrix from the true state.
-R_init = my_quat2rot(x(1:4, 1));
+R_init = quat2rot(x(1:4, 1));
 
 % Simulate an initial, sensor reading. 
 g_B(:,1) = myIMU.getAccelerometerReading(R_init); 
@@ -206,10 +141,6 @@ myEKF.initializeWithTriad(g_B(:,1), m_B(:,1));
 if simParameters.sensors.star.enable == 1
     stars_B(:,1) = myStarSensor.getReading(R_init);
 end
-
-%simParameters.ahrs.flag = 'MADGWICK';
-%simParameters.ahrs.flag = 'EKF';
-%simParameters.ahrs.flag = 'UKF';
 
 %% 4. Previous calculations to optimize the simulation
 Wd_dot = diff(wd')'./diff(t);
@@ -235,7 +166,7 @@ for i = 1:n-1
         %%% --- EKF Correction Step (runs only when attitude measurements are available) ---
         if mod(i-1, steps_attitude) == 0
             % Generate new attitude sensor measurements using helper functions
-            R = my_quat2rot(x(1:4, i));
+            R = quat2rot(x(1:4, i));
             g_B(:,i) = myIMU.getAccelerometerReading(R);
             m_B(:,i) = myIMU.getMagnetometerReading(R);
 
@@ -255,7 +186,7 @@ for i = 1:n-1
         % Generate new attitude sensor measurements using helper functions
         myMadwick = myMadwick.Predict(filtered_omega_meas);
         if mod(i-1, steps_attitude) == 0
-            R = my_quat2rot(x(1:4, i));
+            R = quat2rot(x(1:4, i));
             g_B(:,i) = myIMU.getAccelerometerReading(R);
             m_B(:,i) = myIMU.getMagnetometerReading(R);
             if simParameters.sensors.star.enable == 1 
@@ -273,7 +204,7 @@ for i = 1:n-1
        % Generate new attitude sensor measurements using helper functions
         myUKF.Predict(filtered_omega_meas);
         if mod(i-1, steps_attitude) == 0
-            R = my_quat2rot(x(1:4, i));
+            R = quat2rot(x(1:4, i));
             g_B(:,i) = myIMU.getAccelerometerReading(R);
             m_B(:,i) = myIMU.getMagnetometerReading(R);
             if simParameters.sensors.star.enable == 1 
@@ -293,7 +224,7 @@ for i = 1:n-1
     %% 5.3. Control Law (runs at its own sampling rate Ts_control)
     if mod(i-1, steps_control) == 0
         % --- Calculate new control command ---
-        if simParameters.ekf.enable == 1
+        if simParameters.ahrs.enable == 1
             %%% Use sensors model as feedback signal
             feed_est = [x_est(1:4,i); omega_meas_filtered(:,i)-x_est(5:7,i)];
         else
@@ -308,7 +239,6 @@ for i = 1:n-1
             u_new = adcsim.controllers.ControlFeedback_rw(I, feed_est, dq(:, i), wd(:, i), Wd_dot(:, i), P, K); 
         else
             k_dot = adcsim.controllers.Gain_estimator_bosk(feed_est(5:7), wd(:, i), dq(:, i), delta, gamma, k, Umax);
-            %k = k_ant + dt / 6 * (k_dot_ant + 2 * (k_dot_ant + k_dot) + k_dot);
             k = k_ant + Ts_control / 6 * (k_dot_ant + 2 * (k_dot_ant + k_dot) + k_dot);
             u_new = adcsim.controllers.Boskovic_control(feed_est(5:7), wd(:, i), dq(:, i), delta, k, Umax);
         end
@@ -392,14 +322,4 @@ close(hWaitbar);
         errordlg('Unstable System', 'ERROR');
         indicators = NaN;
     end
-end
-% % % %% 7. Program Functions
-function R = my_quat2rot(q)
-% my_quat2rot Converts a quaternion to a 3x3 rotation matrix.
-% Developed by bespi123
-    q = q / norm(q);
-    q0 = q(1); q1 = q(2); q2 = q(3); q3 = q(4);
-    R = [1 - 2*(q2^2 + q3^2), 2*(q1*q2 - q0*q3), 2*(q1*q3 + q0*q2);
-         2*(q1*q2 + q0*q3), 1 - 2*(q1^2 + q3^2), 2*(q2*q3 - q0*q1);
-         2*(q1*q3 - q0*q2), 2*(q2*q3 + q0*q1), 1 - 2*(q1^2 + q2^2)];
 end

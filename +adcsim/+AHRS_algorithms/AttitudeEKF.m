@@ -35,17 +35,17 @@ classdef AttitudeEKF < handle
             
             % Configure process noise matrix (Q)
             % Q_gyro represents the noise for the 3 error state elements corresponding to angular velocity.
-            obj.Q_gyro = diag(ekf_params.gyro.std.^2);
+            obj.Q_gyro = diag(ekf_params.gyro_std.^2);
             
             % Configure measurement noise matrix (R)
-            R_acc = diag(ekf_params.acc.std.^2);
-            R_mag = diag(ekf_params.mag.std.^2);
+            R_acc = diag(ekf_params.acc_std.^2);
+            R_mag = diag(ekf_params.mag_std.^2);
             
             % Combine R matrices based on available sensors
             if obj.starTracker.enable
                 % Note: R_star assumes star measurement noise parameters are included in ekf_params
                 num_stars = obj.starTracker.numberOfStars;
-                R_star_single = diag(ekf_params.star.std.^2);
+                R_star_single = diag(ekf_params.star_std.^2);
                 R_star_large = kron(eye(num_stars), R_star_single); % Stack R for N stars
                 obj.R = blkdiag(R_acc, R_mag, R_star_large); % Combined R matrix: [R_acc, R_mag, R_star]
             else
