@@ -209,7 +209,7 @@ end
 
 %simParameters.ahrs.flag = 'MADGWICK';
 %simParameters.ahrs.flag = 'EKF';
-simParameters.ahrs.flag = 'UKF';
+%simParameters.ahrs.flag = 'UKF';
 
 %% 4. Previous calculations to optimize the simulation
 Wd_dot = diff(wd')'./diff(t);
@@ -343,6 +343,7 @@ for i = 1:n-1
     %% Actuator model
     [reactionWheels, torque_real_vector] = reactionWheels.update(w_cmd(:, i), dt);
     x_rw(:, i + 1) = reactionWheels.States(:);
+    u_rw(:, i + 1) = reactionWheels.voltage_vector(:);
     torque_real(:,i) = torque_real_vector';
     T_u  = W*torque_real(:,i);
     mySatellite = mySatellite.updateState(T_u, Td(:, i), dt);
