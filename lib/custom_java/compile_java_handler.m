@@ -3,14 +3,15 @@
 % GOAL: Compile the Java step handler (StepStorageHandler.java)
 %       and verify that the Orekit environment is accessible.
 % EXECUTE: Only once, or whenever the .java file is modified.
+% Tested by Bespi123
 % -------------------------------------------------------------------------
 clear; clc; clear java;
 
 %% 1. Environment and Library Setup
 disp('--- COMPILATION SCRIPT ---');
 disp('Setting up Orekit environment...');
-lib_folder = 'orekit';
-java_folder = 'myJavaCodes';
+lib_folder = 'lib/orekit';
+java_folder = 'lib/custom_java';
 
 % --- Add all .jar libraries to the Java path ---
 % Main Orekit library
@@ -43,7 +44,7 @@ compile_command = ['javac --release 8 -cp "', classpath_str, '" ', fullfile(java
 % Check if the compilation was successful
 if status == 0
     disp('SUCCESS! The StepStorageHandler.class file has been created correctly.');
-    disp('You can now run the simulation script (run_propagation.m).');
+    disp('You can now run the simulation script.');
 else
     disp('--- JAVA COMPILATION ERROR ---');
     disp('Check the compiler output to find the error:');
