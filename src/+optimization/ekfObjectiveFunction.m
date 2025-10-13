@@ -1,4 +1,6 @@
 function costs_vector = ekfObjectiveFunction(params, disturbances, simParameters, time)
+    import core.*
+    
     % ekfObjectiveFunction - Evaluates the cost of a set of EKF parameters using a
     %                        Monte Carlo approach to handle stochastic noise.
     %
@@ -29,14 +31,16 @@ function costs_vector = ekfObjectiveFunction(params, disturbances, simParameters
     % --- 1. Extract Parameters from Optimizer ---
     % The 'params' vector from the optimizer is used to update the EKF's
     % noise standard deviations for this evaluation.
-    simParameters.ekf.gyro.std = params(1:3)';
-    simParameters.ekf.acc.std  = params(4:6)';
-    simParameters.ekf.mag.std  = params(7:9)';
+    simParameters.ahrs.ekf.gyro_std = params(1:3)';
+    simParameters.ahrs.ekf.acc_std  = params(4:6)';
+    simParameters.ahrs.ekf.mag_std  = params(7:9)';
     if simParameters.sensors.star.enable == 1
-        simParameters.ekf.star.std  = params(10:12)';
+        simParameters.ahrs.ekf.star_std  = params(10:12)';
     end
-    simParameters.ekf.enable = 0;     % Ensure EKF is not used as feedback during open-loop test.
-    simParameters.ekf.equalModel = 0; % Ensure custom EKF parameters are used.
+    simParameters.ahrs.enable = 1;
+    simParameters.ahrs.enable_feedback = 0;     % Ensure EKF is not used as feedback during open-loop test.
+    simParameters.ahrs.ekf.equalModel = 0; % Ensure custom EKF parameters are used.
+    simParameters.ahrs.flag = 'EKF';
 
     % --- 2. Monte Carlo Loop ---
     % Run the simulation multiple times to average out the effects of random noise.
@@ -46,7 +50,7 @@ function costs_vector = ekfObjectiveFunction(params, disturbances, simParameters
             dump = 0;
             % Run the main simulation function. It's assumed that this function
             % uses different random noise on each call.
-            [~, ~, ~, ~, indicators, ~, error_flag] = simulation_rk4(dump, disturbances, simParameters, time);
+            [~, ~, ~, ~, indicators, ~, ~, error_flag] = simulation_rk4(dump, disturbances, simParameters, time);
             
             if error_flag
                 % If the simulation reports an error (e.g., divergence),

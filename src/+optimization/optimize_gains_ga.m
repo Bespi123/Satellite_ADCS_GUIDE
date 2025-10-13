@@ -65,7 +65,7 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
         'MaxGenerations', 20, ...      % Stopping criterion: maximum number of generations.
         'Display', 'iter', ...          % Displays progress in the command window at each iteration.
         'PlotFcn', {@gaplotbestf, @gaplotstopping}, ... % Generates real-time plots:                                               
-        'UseParallel', false, ...        
+        'UseParallel', true, ...        
         'InitialPopulationMatrix', initial_population); % Provides the previously defined initial population.
 
     % --- 2. Run the Genetic Algorithm ---

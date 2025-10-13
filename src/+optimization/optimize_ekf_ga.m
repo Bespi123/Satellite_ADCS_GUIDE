@@ -1,4 +1,6 @@
 function optimal_params = optimize_ekf_ga(~, disturbances, simParameters, time)
+    import optimization.*
+
     % optimize_ekf_ga - Orchestrates the optimization of EKF parameters
     %                     using a single-objective Genetic Algorithm (GA).
     %
@@ -27,11 +29,11 @@ function optimal_params = optimize_ekf_ga(~, disturbances, simParameters, time)
     
     % Initial Conditions (Initial Population).
     % Providing a good starting point can accelerate convergence.
-    gyro = simParameters.ekf.gyro.std;
-    acc  = simParameters.ekf.acc.std;
-    mag  = simParameters.ekf.mag.std;
+    gyro = simParameters.ahrs.ekf.gyro_std;
+    acc  = simParameters.ahrs.ekf.acc_std;
+    mag  = simParameters.ahrs.ekf.mag_std;
     if simParameters.sensors.star.enable == 1
-        star = simParameters.ekf.star.std;
+        star = simParameters.ahrs.ekf.star_std;
         initial_population = [gyro; acc; mag; star]';
     else
         initial_population = [gyro; acc; mag]';
