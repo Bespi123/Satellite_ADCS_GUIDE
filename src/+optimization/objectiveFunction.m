@@ -20,26 +20,23 @@ function cost = objectiveFunction(gains, disturbances, simParameters, time)
     %   cost          - A single scalar value representing the total "cost"
     %                 of the controller's performance. A lower value is better.
 
-    %Disable AHRS 
-    simParameters.ahrs.enable = 0;
-
     if simParameters.controller.selector == 1
         % --- 1. Update Simulation Parameters with New Gains ---
         % The optimizer passes a 'gains' vector. Here, we extract those values and
         % place them in the controller gain matrices within the
         % simulation parameters structure.
         % It is assumed that the gains are for the diagonals of the P and K matrices.
-        simParameters.feedback.Peye = diag(gains(1:3)); % Proportional gain matrix (P)
-        simParameters.feedback.Keye = diag(gains(4:6)); % Derivative gain matrix (K)
+        simParameters.controller.feedback.Peye = diag(gains(1:3)); % Proportional gain matrix (P)
+        simParameters.controller.feedback.Keye = diag(gains(4:6)); % Derivative gain matrix (K)
     else
         % --- 1. Update Simulation Parameters with New Gains ---
         % The optimizer passes a 'gains' vector. Here, we extract those values and
         % place them in the controller gain matrices within the
         % simulation parameters structure.
         % It is assumed that the gains are for the diagonals of the P and K matrices.
-        simParameters.boskController.delta = gains(1); % delta
-        simParameters.boskController.gamma = gains(2); % gamma
-        simParameters.boskController.k0    = gains(3); % k0
+        simParameters.controller.boskController.delta = gains(1); % delta
+        simParameters.controller.boskController.gamma = gains(2); % gamma
+        simParameters.controller.boskController.k0    = gains(3); % k0
     end
 
     % --- 2. Run the Simulation ---
@@ -50,7 +47,7 @@ function cost = objectiveFunction(gains, disturbances, simParameters, time)
         %Dump variable
         App = NaN;
         % Call to the main simulation function.
-        [~, ~, ~, ~, indicators, ~, error_flag] = simulation_rk4(App, disturbances, simParameters, time);
+        [~, ~, ~, ~, indicators, ~, ~, error_flag] = simulation_rk4(App, disturbances, simParameters, time);
         
         % Check if the simulation itself reported an error (e.g., divergence).
         if error_flag == 1

@@ -122,9 +122,12 @@ function parameters = simulationParameters(~)
     % The AHRS is the algorithm that fuses sensor data to estimate the attitude.
     % Selector for the AHRS algorithm: 'MADGWICK', 'EKF', or 'UKF'.
     parameters.ahrs.flag = 'EKF';
+    % Flag: 1 enables AHRS to the controller (realistic).
+    %       0 don't use AHRS algorithm.
+    parameters.ahrs.enable = true;
     % Flag: 1 enables feedback from the AHRS to the controller (realistic).
     %       0 uses the ideal, true state for feedback (for baseline comparison).
-    parameters.ahrs.enable = 1;
+    parameters.ahrs.enable_feedback = true;
     
     % MADGWICK filter parameters
     parameters.ahrs.madwick.beta = 1; % Filter gain.

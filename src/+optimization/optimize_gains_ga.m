@@ -13,6 +13,9 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
     %   simParameters - Structure with the base simulation parameters.
     %   time          - Structure with the simulation time parameters.
 
+    %Disable AHRS 
+    simParameters.ahrs.enable = 0;
+
     % --- 1. Genetic Algorithm Configuration ---
 
     % Define the objective function (or fitness function).
@@ -62,7 +65,7 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
         'MaxGenerations', 20, ...      % Stopping criterion: maximum number of generations.
         'Display', 'iter', ...          % Displays progress in the command window at each iteration.
         'PlotFcn', {@gaplotbestf, @gaplotstopping}, ... % Generates real-time plots:                                               
-        'UseParallel', true, ...        
+        'UseParallel', false, ...        
         'InitialPopulationMatrix', initial_population); % Provides the previously defined initial population.
 
     % --- 2. Run the Genetic Algorithm ---
