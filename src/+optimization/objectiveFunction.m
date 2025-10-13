@@ -72,7 +72,7 @@ function cost = objectiveFunction(gains, disturbances, simParameters, time)
     w3 = 0.2;  % Weight for the integrated error (EULERINT). Prioritizes accuracy over time.
     
     % Extract the final values of the indicators from the simulation.
-    cost_ts = indicators.ts;               % Time it takes for the system to stabilize.
+    cost_ts = mean(indicators.ts);               % Time it takes for the system to stabilize.
     cost_ascct = indicators.ascct(end);    % Accumulated control effort at the end.
     cost_euler = indicators.eulerInt(end); % Integrated Euler error at the end.
     
