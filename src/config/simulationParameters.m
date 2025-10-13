@@ -1,4 +1,6 @@
 function parameters = simulationParameters(~)
+    import org.orekit.utils.Constants;
+
     % This function defines all configurable parameters for the CubeSat ADCS simulation.
     % It returns a single structure 'parameters' that contains all nested sub-structures
     % for different components of the simulation (e.g., initial values, sensors, control).
@@ -227,4 +229,33 @@ function parameters = simulationParameters(~)
     parameters.rw.motor.pid.ki = 28.7345189644697;   % Integral gain
     parameters.rw.motor.pid.kd = -0.000554999924740984; % Derivative gain
     parameters.rw.motor.pid.Nu = 289.873462888377;  % Derivative filter coefficient.
+
+    %% Orekit parameters
+    % --- Initial Date ---
+    parameters.initialDate = datetime(2025, 10, 10, 23, 30, 00);
+    
+    % --- Initial Orbit (Keplerian Elements) ---
+    parameters.initialOrbit.a    = Constants.WGS84_EARTH_EQUATORIAL_RADIUS + 420e3; % Semi-major axis (m)
+    parameters.initialOrbit.e    = 0.0001;          % Eccentricity
+    parameters.initialOrbit.i    = 51.6 * pi / 180; % Inclination (rad)
+    parameters.initialOrbit.raan = 0.0;             % Right Ascension of the Ascending Node (rad)
+    parameters.initialOrbit.pa   = 0.0;             % Argument of Perigee (rad)
+    parameters.initialOrbit.ta   = 0.0;             % True Anomaly (rad)
+    
+    % --- Spacecraft Physical Properties ---
+    parameters.spacecraft.mass       = 10.0;  % kg
+    parameters.spacecraft.dragArea   = 1.0;   % m^2
+    parameters.spacecraft.dragCoeff  = 2.2;   % unitless
+    parameters.spacecraft.srpArea    = 1.0;   % m^2
+    parameters.spacecraft.srpCoeff   = 1.2;   % unitless (Cr)
+    
+    % --- Simulation Duration & Output ---
+    parameters.duration.num_orbits = 3;
+    parameters.output.stepSize     = 60.0; % Time step for data logging (seconds)
+    
+    % --- Integrator Settings ---
+    parameters.integrator.minStep       = 0.001;  % s
+    parameters.integrator.maxStep       = 1000;   % s
+    parameters.integrator.posTolerance  = 1.0;    % m
+
 end
