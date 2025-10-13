@@ -1,32 +1,34 @@
 function [x, u, T_winf_nosat, x_est, indicators, sensors, actuators, error_flag] = simulation_rk4(~,disturbances,simParameters,time)
-% SIMULATION_RK4 Simulates CubeSat attitude with sampling for sensors and control loop.
+%SIMULATION_RK4 Simulates CubeSat attitude dynamics with multi-rate sampling.
 %
-% This version simulates the attitude dynamics of a CubeSat, allowing the
-% sensors and the control loop to operate at different sampling rates, which
-% is a more realistic model of a digital control system.
+% This function simulates the attitude dynamics of a CubeSat using a Runge-Kutta 4
+% integrator. It models a realistic digital control system where sensors (gyro,
+% attitude sensors) and the control loop operate at different, independent
+% sampling rates.
 %
 % Author: bespi123
-% Creation Date: [Creation Date, 2023-10-27]
-% Last Modified: [Last Modification Date, 2024-07-08]
+% Creation Date: 2023-10-27
+% Last Modified: 2025-10-13
 %
 % Inputs:
-%   app           - UI application object (unused, indicated by ~).
-%   disturbances  - Vector of external disturbance torques.
-%   simParameters - Structure containing simulation parameters.
-%   time          - Structure defining simulation time parameters.
+%   ~             - Placeholder for the UI application object, unused here.
+%   disturbances  - (3xn) matrix of external disturbance torques over time.
+%   simParameters - Struct containing all simulation parameters (initial values,
+%                   controller gains, sensor specs, etc.).
+%   time          - Struct defining simulation time parameters (.ti, .tf, .step).
 %
 % Outputs:
-%   x             - Actual CubeSat state over time.
-%   u             - Control torque applied (updated according to Ts_control).
-%   T_winf_nosat  - Commanded torque for each reaction wheel (no saturation).
-%   x_est         - EKF estimated CubeSat state over time.
-%   indicators    - Structure containing performance metrics.
-%   sensors       - Structure containing sensor data.
-%   actuators     - Structure containing actuator data.
-%   error_flag    - Error flag: 1 if NaN was detected.
+%   x             - (7xn) True CubeSat state history [q; w].
+%   u             - (3xn) Commanded control torque history (updated at Ts_control).
+%   T_winf_nosat  - (RW_num x n) Ideal torque command for each reaction wheel.
+%   x_est         - (7xn) EKF estimated CubeSat state history [q_est; gyro_bias].
+%   indicators    - Struct containing performance metrics (settling time, RMSE, etc.).
+%   sensors       - Struct containing sensor models.
+%   actuators     - Struct containing actuator models.
+%   error_flag    - Flag indicating simulation stability (1 if NaN was detected).
 %
 % ----------------------------------------------------------------------------------
-%% Imports
+
 %%% Import adsim utilities
 import adcsim.utils.*
 %%% Import environment to use python libraries
