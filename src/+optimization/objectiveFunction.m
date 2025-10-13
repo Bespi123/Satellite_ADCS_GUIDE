@@ -1,4 +1,5 @@
 function cost = objectiveFunction(gains, disturbances, simParameters, time)
+    import core.*
     % objectiveFunction - Evaluates the quality (cost) of a set of controller gains.
     %
     % This function is designed to be used by an optimizer (such as a
@@ -18,6 +19,9 @@ function cost = objectiveFunction(gains, disturbances, simParameters, time)
     % Output:
     %   cost          - A single scalar value representing the total "cost"
     %                 of the controller's performance. A lower value is better.
+
+    %Disable AHRS 
+    simParameters.ahrs.enable = 0;
 
     if simParameters.controller.selector == 1
         % --- 1. Update Simulation Parameters with New Gains ---

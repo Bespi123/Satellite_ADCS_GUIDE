@@ -1,4 +1,6 @@
 function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
+    import optimization.*
+
     % optimize_gains_ga - Orchestrates the optimization of controller gains
     %                     using a Genetic Algorithm (GA).
     %
@@ -32,8 +34,8 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
         % A starting point can be provided to the GA. This is very useful if you
         % already have an idea of what good gains are.
         % Each row of 'initial_population' represents an initial "individual".
-        P = simParameters.feedback.Peye;
-        K = simParameters.feedback.Keye;
+        P = simParameters.controller.feedback.Peye;
+        K = simParameters.controller.feedback.Keye;
         initial_population = [P(1,1), P(2,2), P(3,3), K(1,1), K(2,2), K(3,3)]; % Use the current gains from the app as a starting point.
     else
         % In this case, delta, gamma, k0
@@ -47,9 +49,9 @@ function optimal_gains = optimize_gains_ga(~, disturbances, simParameters, time)
         % A starting point can be provided to the GA. This is very useful if you
         % already have an idea of what good gains are.
         % Each row of 'initial_population' represents an initial "individual".
-        delta = simParameters.boskController.delta;
-        gamma = simParameters.boskController.gamma;
-        k0    = simParameters.boskController.k0;
+        delta = simParameters.controller.boskController.delta;
+        gamma = simParameters.controller.boskController.gamma;
+        k0    = simParameters.controller.boskController.k0;
         initial_population = [delta, gamma, k0]; % Use the current gains from the app as a starting point.
     end
 
