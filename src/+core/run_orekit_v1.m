@@ -6,42 +6,42 @@
 % -------------------------------------------------------------------------
 clear; clc; clear java;
 
-%% 1. Configuración del Entorno (SIN COMPILACIÓN)
-disp('--- SCRIPT DE SIMULACIÓN ---');
-disp('Configurando el entorno de Orekit...');
-
-% Definir las rutas a las carpetas
-lib_folder = 'orekit';
-data_folder = 'orekit/orekit-data';
-
-% --- Añadir todas las librerías .jar al path de Java ---
-javaaddpath(fullfile(lib_folder, 'orekit-13.0.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-clustering-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-core-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-fft-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-filtering-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-fitting-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-geometry-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-ode-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-optim-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-samples-4.0.2.jar'));
-javaaddpath(fullfile(lib_folder, 'hipparchus-stat-4.0.2.jar'));
-
-% --- AÑADIR LA CARPETA ACTUAL AL PATH DE JAVA ---
-% !! ESTE PASO ES CRUCIAL !!
-% Le dice a MATLAB dónde encontrar el 'StepStorageHandler.class' que ya compilamos.
-javaaddpath(fullfile(pwd,'myJavaCodes')); 
-disp('Manejador de pasos (.class) añadido al path.');
-
-% --- Configurar el proveedor de datos de Orekit ---
-import org.orekit.data.*;
-import java.io.File;
-manager = DataContext.getDefault().getDataProvidersManager();
-manager.clearProviders();
-manager.addProvider(DirectoryCrawler(File(data_folder)));
-
-disp('Entorno listo.');
-fprintf('\n');
+% % %% 1. Configuración del Entorno (SIN COMPILACIÓN)
+% % disp('--- SCRIPT DE SIMULACIÓN ---');
+% % disp('Configurando el entorno de Orekit...');
+% % 
+% % % Definir las rutas a las carpetas
+% % lib_folder = 'orekit';
+% % data_folder = 'orekit/orekit-data';
+% % 
+% % % --- Añadir todas las librerías .jar al path de Java ---
+% % javaaddpath(fullfile(lib_folder, 'orekit-13.0.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-clustering-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-core-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-fft-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-filtering-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-fitting-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-geometry-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-ode-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-optim-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-samples-4.0.2.jar'));
+% % javaaddpath(fullfile(lib_folder, 'hipparchus-stat-4.0.2.jar'));
+% % 
+% % % --- AÑADIR LA CARPETA ACTUAL AL PATH DE JAVA ---
+% % % !! ESTE PASO ES CRUCIAL !!
+% % % Le dice a MATLAB dónde encontrar el 'StepStorageHandler.class' que ya compilamos.
+% % javaaddpath(fullfile(pwd,'myJavaCodes')); 
+% % disp('Manejador de pasos (.class) añadido al path.');
+% % 
+% % % --- Configurar el proveedor de datos de Orekit ---
+% % import org.orekit.data.*;
+% % import java.io.File;
+% % manager = DataContext.getDefault().getDataProvidersManager();
+% % manager.clearProviders();
+% % manager.addProvider(DirectoryCrawler(File(data_folder)));
+% % 
+% % disp('Entorno listo.');
+% % fprintf('\n');
 
 %% 2. Importar las clases de Orekit necesarias
 % --- Integración y Propagación ---
