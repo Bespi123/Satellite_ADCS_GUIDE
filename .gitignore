@@ -103,3 +103,6 @@ lib/custom_java/*.class
 
 # Don't ignore .gitkeep
 !/.gitkeep
+
+lib/orekit/orekit-data/*
+!lib/orekit/orekit-data/.gitkeep
