@@ -1,4 +1,4 @@
-% compile_handler.m
+% compile_java_handler.m
 % -------------------------------------------------------------------------
 % GOAL: Compile the Java step handler (StepStorageHandler.java)
 %       and verify that the Orekit environment is accessible.
