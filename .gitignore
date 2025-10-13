@@ -94,3 +94,12 @@ build/
 
 file
 file.pub
+
+# Ignore Orekit libraries
+lib/orekit/**/*.jar
+
+# Ignore .class files
+lib/custom_java/*.class
+
+# Don't ignore .gitkeep
+!/.gitkeep
