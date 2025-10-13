@@ -6,7 +6,7 @@ classdef IMU_Sophisticated < handle
 %   - Axis Misalignment (non-orthogonality).
 %   This provides a more realistic simulation of real-world MEMS sensors.
 %   Date          Author          Notes
-%   08/20/2025    Bespi123        Create simple Star tracker model
+%   08/20/2025    Bespi123        Create simple IMU  model
     %% Public Properties
     properties
         Gyroscope       struct  % Models the gyroscope with advanced errors.
@@ -18,14 +18,14 @@ classdef IMU_Sophisticated < handle
     end
     
     methods
-        function obj = IMU_Sophisticated(sensors, g_I, m_I)
+        function obj = IMU_Sophisticated(sensors)
             %IMU_Sophisticated Constructor for the advanced IMU model.
             %   Initializes sensor models with parameters for noise, bias,
             %   scale factor, misalignment, and bias instability.
             
             % --- Gyroscope Model Initialization ---
             % Build Scale Factor and Misalignment matrices from error vectors.
-            gyro_sf_matrix = diag([1,1,1] + sensors.gyro.scale_factor_errors);
+            gyro_sf_matrix = diag([1,1,1] + sensors.gyro.scale_factor_errors');
             gyro_ma_matrix = [1, sensors.gyro.misalignment_errors(1), sensors.gyro.misalignment_errors(2);
                               sensors.gyro.misalignment_errors(3), 1, sensors.gyro.misalignment_errors(4);
                               sensors.gyro.misalignment_errors(5), sensors.gyro.misalignment_errors(6), 1];
@@ -41,7 +41,7 @@ classdef IMU_Sophisticated < handle
             );
             
             % --- Accelerometer Model Initialization ---
-            accel_sf_matrix = diag([1,1,1] + sensors.acc.scale_factor_errors);
+            accel_sf_matrix = diag([1,1,1] + sensors.acc.scale_factor_errors');
             accel_ma_matrix = [1, sensors.acc.misalignment_errors(1), sensors.acc.misalignment_errors(2);
                                sensors.acc.misalignment_errors(3), 1, sensors.acc.misalignment_errors(4);
                                sensors.acc.misalignment_errors(5), sensors.acc.misalignment_errors(6), 1];
@@ -54,7 +54,7 @@ classdef IMU_Sophisticated < handle
             );
             
             % --- Magnetometer Model Initialization ---
-            mag_sf_matrix = diag([1,1,1] + sensors.mag.scale_factor_errors);
+            mag_sf_matrix = diag([1,1,1] + sensors.mag.scale_factor_errors');
             mag_ma_matrix = [1, sensors.mag.misalignment_errors(1), sensors.mag.misalignment_errors(2);
                              sensors.mag.misalignment_errors(3), 1, sensors.mag.misalignment_errors(4);
                              sensors.mag.misalignment_errors(5), sensors.mag.misalignment_errors(6), 1];
@@ -66,8 +66,9 @@ classdef IMU_Sophisticated < handle
                 'misalignment', mag_ma_matrix ...
             );
             
-            obj.g_I = g_I;
-            obj.m_I = m_I;
+            % Store the inertial frame reference vectors.
+            obj.g_I = sensors.acc.g_I;
+            obj.m_I = sensors.mag.m_I;
         end
         
         function reading = getGyroscopeReading(obj, omega, dt)
@@ -79,7 +80,7 @@ classdef IMU_Sophisticated < handle
             
             % 2. Update the gyroscope bias using a random walk model.
             %    The bias drifts over time based on std_RW (rad/s/sqrt(Hz)).
-            bias_drift = obj.Gyroscope.std_RW * sqrt(dt) * randn(3,1);
+            bias_drift = obj.Gyroscope.std_RW .* sqrt(dt) .* randn(3,1);
             obj.Gyroscope.bias = obj.Gyroscope.bias + bias_drift;
             
             % 3. Add the current (time-varying) bias and Gaussian white noise.
