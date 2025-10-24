@@ -8,7 +8,7 @@ java_lib_folder    = 'lib/custom_java';
 
 % --- Add all required .jar libraries to the MATLAB Java path ---
 % Main Orekit library
-javaaddpath(fullfile(orekit_lib_folder, 'orekit-13.0.jar'));
+javaaddpath(fullfile(orekit_lib_folder, 'orekit-13.1.2.jar'));
 % Hipparchus library modules (version 4.0.2)
 javaaddpath(fullfile(orekit_lib_folder, 'hipparchus-clustering-4.0.2.jar'));
 javaaddpath(fullfile(orekit_lib_folder, 'hipparchus-core-4.0.2.jar'));
